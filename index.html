@@ -2278,9 +2278,21 @@ window.rstForm=function(){
   document.querySelectorAll('.task-checkbox').forEach(function(cb){cb.checked=false;});
   var noteInput=document.getElementById('attNote'); if(noteInput){noteInput.value='';} updateNoteCharCount(0);
 renderMissingEmployees();
-// Trong hàm rstForm, thêm dòng:
-var eatRadioKhong = document.querySelector('input[name="eat"][value="Không"]');
-if (eatRadioKhong) eatRadioKhong.checked = true;
+// Giữ nguyên ca đã chọn và set ăn cơm theo ca
+var activeShift = document.querySelector('.shift-btn.active');
+if (activeShift) {
+    var shiftBtns = document.querySelectorAll('.shift-btn');
+    for (var i = 0; i < shiftBtns.length; i++) {
+        if (shiftBtns[i] === activeShift) {
+            // Gọi selShift để set lại ăn cơm đúng theo ca
+            var shiftName = shifts[i] ? shifts[i].name : '';
+            var eatValue = (shiftName === 'Ca 3' || shiftName === '1/2 Ca' || shiftName === 'Nghỉ') ? 'Không' : 'Có';
+            var eatRadio = document.querySelector('input[name="eat"][value="' + eatValue + '"]');
+            if (eatRadio) eatRadio.click();
+            break;
+        }
+    }
+}
 };
 function formatDate(dateStr){if(!dateStr)return'-';var parts=dateStr.split('-');return parts[2]+'/'+parts[1]+'/'+parts[0];}
 
