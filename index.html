@@ -3083,7 +3083,7 @@ window.saveGroupFromModal = async function() {
     allRecords.push({
       id: 'rec_' + Date.now() + '_' + i,
       employee: empName,
-      date: _editModalData.originalDate,
+      date: _editModalData.originalDate.split('T')[0],
       shift: shiftStr,
       eat: eat,
       tasks: taskObjects,
