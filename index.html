@@ -4326,7 +4326,71 @@ window.exportForSheets = function() {
     document.body.removeChild(a);
     showAlert('✅ Đã xuất file CSV! Vào Google Sheets → File → Import để tải lên.');
 };
-syncToSheetsDirect
+window.syncToSheetsDirect = async function() {
+    var records = JSON.parse(localStorage.getItem('r') || '[]');
+    
+    if (records.length === 0) {
+        showAlert('⚠️ Không có dữ liệu!');
+        return;
+    }
+    
+    var syncedIds = JSON.parse(localStorage.getItem('synced_ids') || '[]');
+    var syncedMap = {};
+    syncedIds.forEach(function(id) { syncedMap[id] = true; });
+    
+    var newRecords = records.filter(function(r) {
+        return !syncedMap[r.id];
+    });
+    
+    if (newRecords.length === 0) {
+        showAlert('✅ Tất cả đã được đồng bộ!');
+        return;
+    }
+    
+    showAlert('⏳ Đồng bộ ' + newRecords.length + ' bản ghi mới...');
+    
+    var allRows = [];
+    newRecords.forEach(function(r) {
+        allRows.push([
+            r.id || '',
+            r.employee || '',
+            (r.date || '').split('T')[0],
+            r.shift || '',
+            r.eat || '',
+            JSON.stringify(r.tasks || []),
+            r.note || '',
+            r.timestamp || ''
+        ]);
+    });
+    
+    var batchSize = 5;
+    
+    for (var i = 0; i < allRows.length; i += batchSize) {
+        var batch = allRows.slice(i, i + batchSize);
+        
+        await new Promise(function(resolve) {
+            var iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = GOOGLE_SHEETS_API + '?action=appendOnly&sheet=records&data=' + encodeURIComponent(JSON.stringify(batch));
+            iframe.onload = function() {
+                document.body.removeChild(iframe);
+                resolve();
+            };
+            iframe.onerror = function() {
+                document.body.removeChild(iframe);
+                resolve();
+            };
+            document.body.appendChild(iframe);
+        });
+        
+        await new Promise(function(r) { setTimeout(r, 1500); });
+    }
+    
+    newRecords.forEach(function(r) { syncedIds.push(r.id); });
+    localStorage.setItem('synced_ids', JSON.stringify(syncedIds));
+    
+    showAlert('✅ Đồng bộ ' + newRecords.length + ' bản ghi mới!');
+};
 window.clearSheetsRecords = async function() {
     var confirmed = await showConfirm('⚠️ Xóa TOÀN BỘ bản ghi trên Google Sheets?\n\nDữ liệu trên web vẫn giữ nguyên.', 'Xác nhận xóa');
     if (!confirmed) return;
