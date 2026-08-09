@@ -1246,6 +1246,20 @@
     border-right: 8px solid transparent;
     border-top: 8px solid #1e293b;
 }
+    /* Tăng độ rộng cột ghi chú trong bảng chi tiết công đoạn */
+    #taskDetailTable .note-cell-personal,
+    #taskDetailTable td[class*="note"] {
+    max-width: 200px !important;
+    min-width: 120px !important;
+}
+    #taskDetailTable {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+    #taskDetailTable table {
+    min-width: 700px;
+}
   </style>
 </head>
 <body>
