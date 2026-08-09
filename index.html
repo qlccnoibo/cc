@@ -3414,7 +3414,11 @@ function renderTaskDetailTable(records) {
         '<td class="date-compact">' + formatDate(item.date) + '</td>' +
         '<td><span class="shift-badge ' + getShiftColorClass(item.shiftName) + '">' + item.shiftName + '</span></td>' +
         '<td><div class="employee-group">' + employeeList + '</div></td>' +
-        '<td class="note-compact" title="' + escHtml(noteStr) + '">' + 
+        '<td class="note-cell-personal" onclick="showNotePopup(event, \'' + 
+          noteStr.replace(/'/g, "\\'").replace(/"/g, '&quot;') + '\')" ' +
+          'onmouseenter="showNotePopup(event, \'' + 
+           noteStr.replace(/'/g, "\\'").replace(/"/g, '&quot;') + '\')" ' +
+          'onmouseleave="hideNotePopup()" title="Bấm để xem đầy đủ">' + 
           (noteStr.length > 30 ? noteStr.substring(0, 30) + '...' : noteStr) + 
         '</td>' +
       '</tr>';
