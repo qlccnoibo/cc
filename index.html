@@ -1513,7 +1513,7 @@
 
 <script>
   // ==================== GOOGLE SHEETS CONFIG ====================
-var GOOGLE_SHEETS_API = 'https://script.google.com/macros/s/AKfycbwdV_h_5d-WUd2RRUyOZbYSzJhtHzXb8yzEhuLDxHzoOFvvDTsS5iwlSXqCzEW3qLXHQQ/exec'; // ← THAY URL CỦA BẠN
+var GOOGLE_SHEETS_API = 'https://script.google.com/macros/s/AKfycbwC2s2N7q3Y-W4C6pfHlNvkmeH9QIgnZR_VFrlDMu7wvRdQq1Na41mpSjVqSkknr5z1/exec'; // ← THAY URL CỦA BẠN
 var USE_GOOGLE_SHEETS = true; // true = dùng Google Sheets, false = dùng localStorage
 
 // Hàm đọc dữ liệu từ Google Sheets
@@ -4334,23 +4334,28 @@ window.syncToSheetsDirect = async function() {
         return;
     }
     
-    var syncedIds = JSON.parse(localStorage.getItem('synced_ids') || '[]');
-    var syncedMap = {};
-    syncedIds.forEach(function(id) { syncedMap[id] = true; });
+    // Lấy thời gian đồng bộ cuối
+    var lastSync = parseInt(localStorage.getItem('last_sync_time') || '0');
     
-    var newRecords = records.filter(function(r) {
-        return !syncedMap[r.id];
+    // CHỈ LẤY BẢN GHI THAY ĐỔI
+    var changedRecords = records.filter(function(r) {
+        return !r.lastModified || r.lastModified > lastSync;
     });
     
-    if (newRecords.length === 0) {
+    // Nếu là lần đầu đồng bộ → gửi tất cả
+    if (lastSync === 0 && changedRecords.length === 0) {
+        changedRecords = records;
+    }
+    
+    if (changedRecords.length === 0) {
         showAlert('✅ Tất cả đã được đồng bộ!');
         return;
     }
     
-    showAlert('⏳ Đồng bộ ' + newRecords.length + ' bản ghi mới...');
+    showAlert('⏳ Đồng bộ ' + changedRecords.length + ' bản ghi...');
     
     var allRows = [];
-    newRecords.forEach(function(r) {
+    changedRecords.forEach(function(r) {
         allRows.push([
             r.id || '',
             r.employee || '',
@@ -4363,7 +4368,9 @@ window.syncToSheetsDirect = async function() {
         ]);
     });
     
+    // Gửi theo lô 5 dòng
     var batchSize = 5;
+    var now = Date.now();
     
     for (var i = 0; i < allRows.length; i += batchSize) {
         var batch = allRows.slice(i, i + batchSize);
@@ -4371,7 +4378,8 @@ window.syncToSheetsDirect = async function() {
         await new Promise(function(resolve) {
             var iframe = document.createElement('iframe');
             iframe.style.display = 'none';
-            iframe.src = GOOGLE_SHEETS_API + '?action=appendOnly&sheet=records&data=' + encodeURIComponent(JSON.stringify(batch));
+            iframe.src = GOOGLE_SHEETS_API + '?action=syncRecords&sheet=records&data=' + 
+                         encodeURIComponent(JSON.stringify(batch));
             iframe.onload = function() {
                 document.body.removeChild(iframe);
                 resolve();
@@ -4383,13 +4391,14 @@ window.syncToSheetsDirect = async function() {
             document.body.appendChild(iframe);
         });
         
-        await new Promise(function(r) { setTimeout(r, 1500); });
+        await new Promise(function(r) { setTimeout(r, 2000); });
     }
     
-    newRecords.forEach(function(r) { syncedIds.push(r.id); });
-    localStorage.setItem('synced_ids', JSON.stringify(syncedIds));
+    // Lưu thời gian đồng bộ
+    localStorage.setItem('last_sync_time', now.toString());
     
-    showAlert('✅ Đồng bộ ' + newRecords.length + ' bản ghi mới!');
+    showAlert('✅ Đồng bộ ' + changedRecords.length + ' bản ghi thành công!');
+    console.log('✅ Đồng bộ: ' + changedRecords.length + ' bản ghi');
 };
 window.clearSheetsRecords = async function() {
     var confirmed = await showConfirm('⚠️ Xóa TOÀN BỘ bản ghi trên Google Sheets?\n\nDữ liệu trên web vẫn giữ nguyên.', 'Xác nhận xóa');
