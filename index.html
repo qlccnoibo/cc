@@ -4233,18 +4233,19 @@ async function syncFromSheets() {
             });
             localStorage.setItem(GROUP_KEY, JSON.stringify(groupData));
         }
-        if (recData && recData.length > 0) {
-            recData.forEach(function(row) {
-                if (row.tasks && typeof row.tasks === 'string') {
-                    try { row.tasks = JSON.parse(row.tasks); } catch(e) { row.tasks = []; }
-                }
-            });
-            // Chuẩn hóa ngày
-            recData.forEach(function(row) {
-                 if (row.date) row.date = row.date.split('T')[0];
-            });
-            localStorage.setItem(REC_KEY, JSON.stringify(recData));
+     if (recData && recData.length > 0) {
+    recData.forEach(function(row) {
+        // Parse tasks
+        if (row.tasks && typeof row.tasks === 'string') {
+            try { row.tasks = JSON.parse(row.tasks); } catch(e) { row.tasks = []; }
         }
+        // Chuẩn hóa ngày
+        if (row.date && row.date.indexOf('T') > -1) {
+            row.date = row.date.split('T')[0];
+        }
+    });
+    localStorage.setItem(REC_KEY, JSON.stringify(recData));
+}
         
         console.log('✅ Đã tải: ' + (empData ? empData.length : 0) + ' NV, ' + (recData ? recData.length : 0) + ' bản ghi');
     } catch (e) {
