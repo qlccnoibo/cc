@@ -1428,7 +1428,11 @@
 <div id="editGroupModal" class="edit-modal-backdrop">
   <div class="edit-modal">
     <h3>✏️ Sửa nhóm chấm công</h3>
-    
+    <div class="modal-body">
+    <!-- THÊM DÒNG NÀY VÀO ĐẦU MODAL BODY -->
+    <label style="font-weight:500; margin-bottom:4px; display:block;">📅 Ngày chấm công</label>
+    <input type="date" id="modalDate" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:6px; margin-bottom:12px;" />
+     </div>
     <!-- 1. Nhân viên -->
     <div class="modal-section">
       <div class="modal-label">👥 Nhân viên</div>
@@ -2845,6 +2849,8 @@ window.openEditModal = function(groupKey) {
   setTimeout(function() {
     document.getElementById('modalEmpInput').focus();
   }, 300);
+  // Set ngày cho modal
+    document.getElementById('modalDate').value = groupDate;
 };
 window.editRecordGroup = function(key) {
   var allRecords = L(REC_KEY, []);
@@ -3095,7 +3101,8 @@ window.saveGroupFromModal = async function() {
     allRecords.push({
       id: 'rec_' + Date.now() + '_' + i,
       employee: empName,
-      date: _editModalData.originalDate.split('T')[0],
+      // Lấy ngày từ modal, nếu không có thì dùng ngày gốc
+      date: (document.getElementById('modalDate')?.value || _editModalData.originalDate).split('T')[0],
       shift: shiftStr,
       eat: eat,
       tasks: taskObjects,
