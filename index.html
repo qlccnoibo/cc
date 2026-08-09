@@ -2888,13 +2888,15 @@ window.deleteRecordGroup = async function(key) {
   allRecords = allRecords.filter(function(r) {
     return !(employees.includes(r.employee) && r.date === groupDate && r.shift === groupShift && r.eat === groupEat && (r.note || '') === groupNote && JSON.stringify(r.tasks || []) === JSON.stringify(groupTasks));
   });
+  // Đánh dấu thời gian thay đổi
+  localStorage.setItem('last_sync_time', '0'); // Reset về 0 để lần sau đồng bộ toàn bộ
   S(REC_KEY, allRecords);
   // Đồng bộ xóa lên Google Sheets
 if (USE_GOOGLE_SHEETS && matchingRecords.length > 0) {
     matchingRecords.forEach(function(r) {
         var iframe = document.createElement('iframe');
         iframe.style.display = 'none';
-        iframe.src = GOOGLE_SHEETS_API + '?action=delete&sheet=records&id=' + encodeURIComponent(r.id);
+        iframe.src = GOOGLE_SHEETS_API + '?action=deleteRecord&sheet=records&id=' + encodeURIComponent(r.id);
         document.body.appendChild(iframe);
         setTimeout(function() { document.body.removeChild(iframe); }, 3000);
     });
