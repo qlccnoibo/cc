@@ -1544,7 +1544,7 @@
 
 <script>
   // ==================== GOOGLE SHEETS CONFIG ====================
-var GOOGLE_SHEETS_API = 'https://script.google.com/macros/s/AKfycbwRLxZ7Q6PtDnDcIjvZVKRSGI1l5kw23NQqCLazm9Jw1BpuJBurhmvTRVtYxXWPKhe9pw/exec'; // ← THAY URL CỦA BẠN
+var GOOGLE_SHEETS_API = 'https://script.google.com/macros/s/AKfycbxlkYpXMUEyFcD576HUCuSkAh7eYOgl6jmrIUv32TQOGTK5YmjmjuCCOoDLgiIe_kCs4A/exec'; // ← THAY URL CỦA BẠN
 var USE_GOOGLE_SHEETS = true; // true = dùng Google Sheets, false = dùng localStorage
 
 // Hàm đọc dữ liệu từ Google Sheets
@@ -4314,6 +4314,8 @@ async function syncFromSheets() {
             try { row.tasks = JSON.parse(row.tasks); } catch(e) { row.tasks = []; }
         }
         if (row.date) {
+              console.log('RAW DATE from Sheets:', row.date);
+
     // Bỏ dấu nháy đơn (nếu có), bỏ giờ, chỉ lấy ngày
     var cleanDate = String(row.date).replace(/'/g, '').split('T')[0];
     // Nếu ngày có dạng YYYY-MM-DD thì giữ nguyên
