@@ -3682,6 +3682,7 @@ function init(){
   checkAdmin();
      // 👇 THÊM DÒNG NÀY: Luôn đồng bộ từ Sheets trước khi hiển thị
     if (USE_GOOGLE_SHEETS && !isAdmin) {
+        localStorage.removeItem('r');
         syncFromSheets().then(function() {
             refreshAllUI();
         });
