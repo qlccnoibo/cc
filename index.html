@@ -2849,7 +2849,8 @@ window.openEditModal = function(groupKey) {
   _editModalData.originalEat = groupEat;
   _editModalData.originalNote = groupNote;
   _editModalData.originalTasks = JSON.parse(JSON.stringify(groupTasks));
-  
+  // Lưu ID gốc để khi sửa giữ nguyên ID, không tạo mới
+  _editModalData.originalIds = matchingRecords.map(function(r) { return r.id; });
   // Set các giá trị hiện tại
   _editModalData.tasks = groupTasks.map(function(t) { return t.task; });
   _editModalData.eat = groupEat;
@@ -3120,7 +3121,7 @@ window.saveGroupFromModal = async function() {
   var now = new Date().toISOString();
   _editModalData.employees.forEach(function(empName, i) {
     allRecords.push({
-      id: 'rec_' + Date.now() + '_' + i,
+      id: (_editModalData.originalIds && _editModalData.originalIds[i]) ? _editModalData.originalIds[i] : ('rec_' + Date.now() + '_' + i),
       employee: empName,
       // Lấy ngày từ modal, nếu không có thì dùng ngày gốc
       date: (document.getElementById('modalDate')?.value || _editModalData.originalDate).split('T')[0],
