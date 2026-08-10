@@ -2731,22 +2731,19 @@ function renderStatsTable(records){
     }
   });
   
-  var html = '<div style="overflow-x:auto"><table class="stats-table-compact">';
+    var html = '<div style="overflow-x:auto"><table class="stats-table-compact">';
   html += '<tr><th>Ngày</th><th>Nhân viên</th><th>Ca làm</th><th>Công việc</th><th>Ghi chú</th><th>Ăn</th><th style="width:110px">Thao tác</th></tr>';
   
-  // ===== SẮP XẾP: CA TRƯỚC, TIMESTAMP SAU =====
+  // ===== SẮP XẾP =====
   var sortedKeys = Object.keys(grouped);
-
-sortedKeys.sort(function(a, b) {
+  sortedKeys.sort(function(a, b) {
     var groupA = grouped[a];
     var groupB = grouped[b];
     
-    // 1. Sắp xếp theo NGÀY (mới nhất trước)
     if (groupA.date !== groupB.date) {
         return groupB.date.localeCompare(groupA.date);
     }
     
-    // 2. Cùng ngày → sắp xếp theo THỨ TỰ CA
     var shiftNameA = groupA.shift ? groupA.shift.split('(')[0].trim() : '';
     var shiftNameB = groupB.shift ? groupB.shift.split('(')[0].trim() : '';
     
@@ -2761,9 +2758,8 @@ sortedKeys.sort(function(a, b) {
         return orderA - orderB;
     }
     
-    // 3. Cùng ca → sắp xếp theo TIMESTAMP (nhập trước hiện trước)
     return (groupA.firstTimestamp || '99').localeCompare(groupB.firstTimestamp || '99');
-});
+  });
   
   // ===== RENDER =====
   sortedKeys.forEach(function(key, idx){
