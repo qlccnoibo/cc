@@ -3670,6 +3670,14 @@ if(impB){impB.disabled=true;impB.style.opacity='0.6';}
 
 // ==================== INIT ====================
 function init(){
+     if (!Date.prototype._toISOString) {
+        Date.prototype._toISOString = Date.prototype.toISOString;
+        Date.prototype.toISOString = function() {
+            var offset = 7 * 60 * 60 * 1000;
+            var d = new Date(this.getTime() + offset);
+            return d._toISOString().split('T')[0] + 'T00:00:00.000Z';
+        };
+    }
   checkAdmin();
      // 👇 THÊM DÒNG NÀY: Luôn đồng bộ từ Sheets trước khi hiển thị
     if (USE_GOOGLE_SHEETS && !isAdmin) {
