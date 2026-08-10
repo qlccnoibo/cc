@@ -2735,27 +2735,28 @@ function renderStatsTable(records){
   html += '<tr><th>Ngày</th><th>Nhân viên</th><th>Ca làm</th><th>Công việc</th><th>Ghi chú</th><th>Ăn</th><th style="width:110px">Thao tác</th></tr>';
   
   // ===== SẮP XẾP: CA TRƯỚC, TIMESTAMP SAU =====
-  var sortedKeys = Object.keys(grouped).sort(function(a, b){
+  sortedKeys.sort(function(a, b) {
     var groupA = grouped[a];
     var groupB = grouped[b];
     
-    // 1. Sắp xếp theo THỨ TỰ CA (Ca 1 → Ca 2 → Ca 3 → HC → 1/2 Ca → Nghỉ)
+    // 1. Sắp xếp theo NGÀY (mới nhất trước)
+    if (groupA.date !== groupB.date) {
+        return groupB.date.localeCompare(groupA.date);
+    }
+    
+    // 2. Cùng ngày → sắp xếp theo THỨ TỰ CA
     var shiftNameA = groupA.shift ? groupA.shift.split('(')[0].trim() : '';
     var shiftNameB = groupB.shift ? groupB.shift.split('(')[0].trim() : '';
     
-    var orderA = getShiftOrder(shiftNameA);
-    var orderB = getShiftOrder(shiftNameB);
+    var order = ['Ca 1', 'Ca 2', 'Ca 3', 'HC', '1/2 Ca', 'Nghỉ'];
+    var orderA = order.indexOf(shiftNameA);
+    var orderB = order.indexOf(shiftNameB);
     
-    if (orderA !== orderB) {
-      return orderA - orderB; // Ca 1 → Ca 2 → Ca 3 → ...
-    }
+    if (orderA === -1) orderA = 99;
+    if (orderB === -1) orderB = 99;
     
-    // 2. CÙNG CA: Sắp xếp theo TIMESTAMP (nhập trước → hiện trước)
-    var timeA = groupA.firstTimestamp || '9999';
-    var timeB = groupB.firstTimestamp || '9999';
-    
-    return timeA.localeCompare(timeB); // Sớm nhất lên đầu
-  });
+    return orderA - orderB;
+});
   
   // ===== RENDER =====
   sortedKeys.forEach(function(key, idx){
