@@ -1601,47 +1601,36 @@ function checkAdmin() {
 
 function adminMode() {
     isAdmin = true;
+    
     document.querySelectorAll('.admin-only').forEach(function(el) {
         el.style.display = '';
     });
-    var form = document.getElementById('attendanceForm');
-    if (form) {
-        form.querySelectorAll('input, select, textarea, button').forEach(function(el) {
-            el.disabled = false;
-            el.style.opacity = '';
-            el.style.pointerEvents = '';
-        });
-        var notice = document.getElementById('employeeNotice');
-        if (notice) notice.remove();
-    }
+    
+    var chamCong = document.getElementById('pageChamCong');
+    if (chamCong) chamCong.style.display = '';
+    
     var btn = document.getElementById('adminLoginBtn');
     if (btn) { btn.textContent = '🔓 Admin'; btn.style.background = '#10b981'; }
 }
 
 function employeeMode() {
     isAdmin = false;
+    
+    // Ẩn tất cả phần admin
     document.querySelectorAll('.admin-only').forEach(function(el) {
         el.style.display = 'none';
     });
-    var form = document.getElementById('attendanceForm');
-    if (form) {
-        form.querySelectorAll('input, select, textarea, button').forEach(function(el) {
-            el.disabled = true;
-            el.style.opacity = '0.6';
-            el.style.pointerEvents = 'none';
-        });
-        if (!document.getElementById('employeeNotice')) {
-            var notice = document.createElement('div');
-            notice.id = 'employeeNotice';
-            notice.style.cssText = 'text-align:center;padding:10px;margin-bottom:10px;background:#fef3c7;border-radius:8px;color:#92400e;font-weight:500;font-size:13px;';
-            notice.innerHTML = '🔒 Chế độ xem - Đăng nhập Admin để chấm công';
-            form.insertBefore(notice, form.firstChild);
-        }
-    }
+    
+    // Ẩn trang Chấm công
+    var chamCong = document.getElementById('pageChamCong');
+    if (chamCong) chamCong.style.display = 'none';
+    
+    // Chuyển sang tab Thống kê
+    switchTab('ThongKe');
+    
     var btn = document.getElementById('adminLoginBtn');
     if (btn) { btn.textContent = '🔐 Đăng nhập'; btn.style.background = '#64748b'; }
 }
-
 async function toggleAdmin() {
     if (isAdmin) {
         sessionStorage.removeItem('admin_logged_in');
