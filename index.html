@@ -2735,8 +2735,9 @@ function renderStatsTable(records){
   html += '<tr><th>Ngày</th><th>Nhân viên</th><th>Ca làm</th><th>Công việc</th><th>Ghi chú</th><th>Ăn</th><th style="width:110px">Thao tác</th></tr>';
   
   // ===== SẮP XẾP: CA TRƯỚC, TIMESTAMP SAU =====
-  var sortedKeys = Object.keys(grouped)
-  sortedKeys.sort(function(a, b) {
+  var sortedKeys = Object.keys(grouped);
+
+sortedKeys.sort(function(a, b) {
     var groupA = grouped[a];
     var groupB = grouped[b];
     
@@ -2756,7 +2757,12 @@ function renderStatsTable(records){
     if (orderA === -1) orderA = 99;
     if (orderB === -1) orderB = 99;
     
-    return orderA - orderB;
+    if (orderA !== orderB) {
+        return orderA - orderB;
+    }
+    
+    // 3. Cùng ca → sắp xếp theo TIMESTAMP (nhập trước hiện trước)
+    return (groupA.firstTimestamp || '99').localeCompare(groupB.firstTimestamp || '99');
 });
   
   // ===== RENDER =====
