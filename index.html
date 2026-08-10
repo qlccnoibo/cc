@@ -2736,14 +2736,16 @@ function renderStatsTable(records){
   
   // ===== SẮP XẾP =====
   var sortedKeys = Object.keys(grouped);
-  sortedKeys.sort(function(a, b) {
+sortedKeys.sort(function(a, b) {
     var groupA = grouped[a];
     var groupB = grouped[b];
     
+    // 1. Ngày CŨ nhất trước
     if (groupA.date !== groupB.date) {
-        return groupB.date.localeCompare(groupA.date);
+        return groupA.date.localeCompare(groupB.date);
     }
     
+    // 2. Thứ tự Ca
     var shiftNameA = groupA.shift ? groupA.shift.split('(')[0].trim() : '';
     var shiftNameB = groupB.shift ? groupB.shift.split('(')[0].trim() : '';
     
@@ -2758,8 +2760,9 @@ function renderStatsTable(records){
         return orderA - orderB;
     }
     
+    // 3. Nhập trước → hiện trước
     return (groupA.firstTimestamp || '99').localeCompare(groupB.firstTimestamp || '99');
-  });
+});
   
   // ===== RENDER =====
   sortedKeys.forEach(function(key, idx){
