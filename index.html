@@ -2735,6 +2735,7 @@ function renderStatsTable(records){
   html += '<tr><th>Ngày</th><th>Nhân viên</th><th>Ca làm</th><th>Công việc</th><th>Ghi chú</th><th>Ăn</th><th style="width:110px">Thao tác</th></tr>';
   
   // ===== SẮP XẾP: CA TRƯỚC, TIMESTAMP SAU =====
+  var sortedKeys = Object.keys(grouped)
   sortedKeys.sort(function(a, b) {
     var groupA = grouped[a];
     var groupB = grouped[b];
