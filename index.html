@@ -1776,7 +1776,18 @@ function removeAccents(str) { if(!str)return''; return str.normalize('NFD').repl
 function containsExactChars(name, query) { if(!query||!name)return false; if(query.length>name.length)return false; var nl=name.toLowerCase(),ql=query.toLowerCase(),nna=removeAccents(nl),qna=removeAccents(ql); return nl.indexOf(ql)!==-1||nna.indexOf(qna)!==-1; }
 function isEmployeeSelected(empName) { return selectedEmployees.includes(empName); }
 function escHtml(str) { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-
+function highlightTruongCa(tasksStr) {
+    if (!tasksStr) return '-';
+    // Tách các công việc, tô đậm công việc có "Trưởng ca"
+    var tasks = tasksStr.split(', ');
+    var result = tasks.map(function(t) {
+        if (t.indexOf('Trưởng ca') > -1) {
+            return '<span style="background:#dc2626; color:white; padding:2px 8px; border-radius:12px; font-weight:700; font-size:12px;">' + escHtml(t) + '</span>';
+        }
+        return escHtml(t);
+    });
+    return result.join(', ');
+}
 function addSelectedEmployee(empName) {
   if(isEmployeeSelected(empName)) { showAlert('Nhân viên "'+empName+'" đã được chọn!'); return; }
   selectedEmployees.push(empName); renderSelectedEmployees();
@@ -2802,7 +2813,7 @@ sortedKeys.sort(function(a, b) {
       '<td class="date-compact">' + formatDate(group.date) + '</td>' +
       '<td><div class="employee-group">' + employeeTags + '</div></td>' +
       '<td><span class="shift-badge ' + getShiftColorClass(shiftName) + '">' + escHtml(shiftName) + '</span></td>' +
-      '<td class="task-list-compact">' + escHtml(tasks) + '</td>' +
+      '<td class="task-list-compact">' + highlightTruongCa(tasks) + '</td>' +
       '<td class="note-cell" onclick="expandNote(event)" title="Bấm để xem đầy đủ">' + noteSafe + '</td>' +
       '<td><span class="eat-badge ' + eatBadge + '">' + (group.eat || '-') + '</span></td>' +
       '<td><div class="actions" style="gap:4px; justify-content:center;">' +
