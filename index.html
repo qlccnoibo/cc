@@ -3718,18 +3718,17 @@ function init(){
     }
   checkAdmin();
      if (!isAdmin) {
-    // Load dữ liệu từ GitHub
-    fetch('https://raw.githubusercontent.com/binhkca/cc/main/data.json')
+    fetch('https://raw.githubusercontent.com/binhkca/cc/main/data.json?t=' + Date.now())
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data && data.length > 0) {
                 localStorage.setItem('r', JSON.stringify(data));
                 refreshAllUI();
-                console.log('✅ Đã tải ' + data.length + ' bản ghi từ GitHub');
+                console.log('✅ Đã tải ' + data.length + ' bản ghi');
             }
         })
         .catch(function(e) {
-            console.error('❌ Lỗi tải từ GitHub:', e);
+            console.error('❌ Lỗi:', e);
         });
 }
     // 👇 HIỂN THỊ NGAY DỮ LIỆU CŨ (0 giây chờ)
