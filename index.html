@@ -1300,19 +1300,9 @@
     <!-- toàn bộ form chấm công -->
 </div>
 
-<!-- Nút Backup/Restore - chỉ Admin -->
-<button class="admin-only" onclick="backupAllData()">📥 Backup</button>
-<button class="admin-only" onclick="restoreAllData()">📤 Restore</button>
-
-<!-- Nút Export CSV/PDF trong tab Thống kê - chỉ Admin -->
-<button class="admin-only" onclick="exportStatsCSV()">📥 Xuất CSV</button>
-<button class="admin-only" onclick="exportStatsPDF()">📄 Xuất PDF</button>
-
-<!-- Nút Xóa/Sửa trong bảng thống kê - chỉ Admin -->
-<!-- Các nút này đã có class riêng, cần ẩn cả dòng chứa nút -->
- <button class="btn btn-sm admin-only" onclick="exportForSheets()" 
-        style="background:#f59e0b; color:white; border:none;">
-    ☁️ Đồng bộ lên Cloud
+<button class="btn btn-sm admin-only" onclick="uploadToGithub()" 
+        style="background:#3b82f6; color:white; border:none;">
+    📤 Upload lên GitHub
 </button>
 <button class="btn btn-sm admin-only" onclick="syncToSheetsDirect()" 
         style="background:#10b981; color:white; border:none; margin-left:8px;">
@@ -1329,13 +1319,8 @@
     <button id="tabThongKe" type="button">📊 Thống kê</button>
     <button id="tabCaNhan" type="button">👤 Cá nhân</button>
     <button id="tabQuanLy" class="admin-only" type="button">⚙️ Quản lý</button>
-      
-    <!-- Thêm nút "Tải lại dữ liệu" cho nhân viên-->
-      <button onclick="location.reload(true)" 
-        style="padding:6px 12px; background:#3b82f6; color:white; border:none; border-radius:6px; font-size:12px;">
-    🔄 Tải lại dữ liệu mới
-</button>
-    <!-- Nút Admin đẩy sang phải -->
+    
+        <!-- Nút Admin đẩy sang phải -->
     <button id="adminLoginBtn" onclick="toggleAdmin()" 
             style="margin-left:auto; padding:8px 14px; 
                    background:#64748b; color:white; border:none; border-radius:8px; 
@@ -1541,7 +1526,28 @@
       <div class="controls" id="__cdControls"></div>
     </div>
   </div>
-
+<div class="admin-only" style="margin-top:20px; padding:16px; background:#f8fafc; border-radius:12px; border:1px solid #e5e7eb;">
+    <h4 style="margin:0 0 12px 0;">💾 Sao lưu & Phục hồi</h4>
+    
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-sm" onclick="backupAllData()" 
+                style="background:#10b981; color:white; border:none; padding:10px 16px;">
+            💾 Sao lưu dữ liệu
+        </button>
+        <button class="btn btn-sm" onclick="restoreAllData()" 
+                style="background:#f59e0b; color:white; border:none; padding:10px 16px;">
+            📥 Phục hồi dữ liệu
+        </button>
+        <button class="btn btn-sm" onclick="uploadToGithub()" 
+                style="background:#3b82f6; color:white; border:none; padding:10px 16px;">
+            📤 Upload lên GitHub
+        </button>
+    </div>
+    
+    <p style="font-size:12px; color:#64748b; margin-top:8px;">
+        💡 Sao lưu: Tải file JSON về máy | Phục hồi: Chọn file JSON để khôi phục | Upload: Đưa dữ liệu lên GitHub cho nhân viên
+    </p>
+</div>
 <script>
   // ==================== GOOGLE SHEETS CONFIG ====================
 var GOOGLE_SHEETS_API = 'https://script.google.com/macros/s/AKfycbxlkYpXMUEyFcD576HUCuSkAh7eYOgl6jmrIUv32TQOGTK5YmjmjuCCOoDLgiIe_kCs4A/exec'; // ← THAY URL CỦA BẠN
@@ -3711,13 +3717,21 @@ function init(){
         };
     }
   checkAdmin();
-     // 👇 THÊM DÒNG NÀY: Luôn đồng bộ từ Sheets trước khi hiển thị
-    if (USE_GOOGLE_SHEETS && !isAdmin) {
-        localStorage.removeItem('r');
-        syncFromSheets().then(function() {
-            refreshAllUI();
+     if (!isAdmin) {
+    // Load dữ liệu từ GitHub
+    fetch('https://raw.githubusercontent.com/binhkca/cc/main/data.json')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data && data.length > 0) {
+                localStorage.setItem('r', JSON.stringify(data));
+                refreshAllUI();
+                console.log('✅ Đã tải ' + data.length + ' bản ghi từ GitHub');
+            }
+        })
+        .catch(function(e) {
+            console.error('❌ Lỗi tải từ GitHub:', e);
         });
-    }
+}
     // 👇 HIỂN THỊ NGAY DỮ LIỆU CŨ (0 giây chờ)
     var attDate = document.getElementById('attDate'); 
     if(attDate) attDate.value = new Date().toISOString().split('T')[0];
@@ -4378,6 +4392,21 @@ window.exportForSheets = function() {
     a.click();
     document.body.removeChild(a);
     showAlert('✅ Đã xuất file CSV! Vào Google Sheets → File → Import để tải lên.');
+};
+// 👉 THÊM VÀO ĐÂY
+window.uploadToGithub = function() {
+    var records = JSON.parse(localStorage.getItem('r') || '[]');
+    var jsonStr = JSON.stringify(records);
+    
+    var blob = new Blob([jsonStr], {type: 'application/json'});
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'data.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    
+    showAlert('✅ File data.json đã tải về!\n\n👉 Vào GitHub → Upload file này lên.');
 };
 window.syncToSheetsDirect = async function() {
     var records = JSON.parse(localStorage.getItem('r') || '[]');
