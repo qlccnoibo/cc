@@ -1618,12 +1618,14 @@ function checkAdmin() {
 function adminMode() {
     isAdmin = true;
     
-    document.querySelectorAll('.admin-only').forEach(function(el) {
-        el.style.display = '';
-    });
+    var adminBtns = document.getElementById('adminActionBtns');
+    if (adminBtns) adminBtns.style.display = 'flex';
     
-    var chamCong = document.getElementById('pageChamCong');
-    if (chamCong) chamCong.style.display = '';
+    // Hiện lại tab
+    var tabCC = document.getElementById('tabChamCong');
+    var tabQL = document.getElementById('tabQuanLy');
+    if (tabCC) tabCC.style.display = '';
+    if (tabQL) tabQL.style.display = '';
     
     var btn = document.getElementById('adminLoginBtn');
     if (btn) { btn.textContent = '🔓 Admin'; btn.style.background = '#10b981'; }
@@ -1632,16 +1634,22 @@ function adminMode() {
 function employeeMode() {
     isAdmin = false;
     
-    // Ẩn tất cả phần admin
-    document.querySelectorAll('.admin-only').forEach(function(el) {
-        el.style.display = 'none';
-    });
+    // Ẩn nút admin
+    var adminBtns = document.getElementById('adminActionBtns');
+    if (adminBtns) adminBtns.style.display = 'none';
     
-    // Ẩn trang Chấm công
-    var chamCong = document.getElementById('pageChamCong');
-    if (chamCong) chamCong.style.display = 'none';
+    // Ẩn tab Chấm công & Quản lý
+    var tabCC = document.getElementById('tabChamCong');
+    var tabQL = document.getElementById('tabQuanLy');
+    if (tabCC) tabCC.style.display = 'none';
+    if (tabQL) tabQL.style.display = 'none';
     
-    // Chuyển sang tab Thống kê
+    // Ẩn trang Chấm công & Quản lý
+    var pageCC = document.getElementById('pageChamCong');
+    var pageQL = document.getElementById('pageQuanLy');
+    if (pageCC) pageCC.style.display = 'none';
+    if (pageQL) pageQL.style.display = 'none';
+    
     switchTab('ThongKe');
     
     var btn = document.getElementById('adminLoginBtn');
@@ -2462,7 +2470,8 @@ html += '</div>';
   html += '<div id="statsTableContainer"></div>';
   html += '<div class="chart-container" style="grid-column: 1 / -1;"><div class="chart-title">📊 Phân bố ca làm việc</div><div id="pieChart" class="pie-chart-wrapper"></div></div>';
   var insightHtml = generateInsights(rec); if (insightHtml) html += insightHtml;
-  html += '<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap"><button class="btn btn-sm" onclick="exportStatsCSV()">📊 Xuất CSV</button><button class="btn btn-sm btn-primary" onclick="exportStatsPDF()">📄 Xuất PDF</button><button class="btn btn-sm btn-danger" onclick="clearAllRecords()">🗑 Xóa tất cả</button></div>';
+  html += '<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap"><button class="btn btn-sm" onclick="exportStatsCSV()">📊 Xuất CSV</button><button class="btn btn-sm btn-primary" onclick="exportStatsPDF()">📄 Xuất PDF</button><button class="btn btn-sm admin-only" onclick="clearAllRecords()">🗑 Xóa tất cả</button>;
+  //html += '<button class="btn btn-sm admin-only" onclick="clearAllRecords()">🗑 Xóa tất cả</button>';
   html += '</div>';
   html += '</div>';
 
