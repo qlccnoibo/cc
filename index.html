@@ -1295,6 +1295,9 @@
 #pieChart > div {
     width: 100% !important;
 }
+    #backupSection {
+    display: none !important;
+}
   </style>
 </head>
 <body>
@@ -1308,11 +1311,6 @@
 <div class="admin-only">
     <!-- toàn bộ form chấm công -->
 </div>
-
-<button class="btn btn-sm admin-only" onclick="uploadToGithub()" 
-        style="background:#3b82f6; color:white; border:none; padding:10px 16px;">
-    📤 Upload lên GitHub
-</button>
 </div>
   <nav class="nav">
     <nav class="nav" style="display:flex; align-items:center; gap:4px; flex-wrap:wrap; justify-content:flex-start;">
@@ -1320,7 +1318,10 @@
     <button id="tabThongKe" type="button">📊 Thống kê</button>
     <button id="tabCaNhan" type="button">👤 Cá nhân</button>
     <button id="tabQuanLy" class="admin-only" type="button">⚙️ Quản lý</button>
-    
+    <button class="admin-only" onclick="uploadToGithub()" 
+        style="padding:8px 14px; background:#3b82f6; color:white; border:none; border-radius:8px; font-size:13px; cursor:pointer; white-space:nowrap;">
+        📤 Upload lên Github
+    </button>
         <!-- Nút Admin đẩy sang phải -->
     <button id="adminLoginBtn" onclick="toggleAdmin()" 
             style="margin-left:auto; padding:8px 14px; 
@@ -1454,7 +1455,7 @@
           </div>
         </aside>
       </div>
-      <div class="admin-only" style="margin-top:20px; padding:16px; background:#f8fafc; border-radius:12px; border:1px solid #e5e7eb;">
+      <div id="backupSection" style="display:none; margin-top:20px; padding:16px; background:#f8fafc; border-radius:12px; border:1px solid #e5e7eb;">
     <h4 style="margin:0 0 12px 0;">💾 Sao lưu & Phục hồi</h4>
     
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
@@ -1609,9 +1610,12 @@ function checkAdmin() {
 
 function adminMode() {
     isAdmin = true;
-    
-    var adminBtns = document.getElementById('adminActionBtns');
-    if (adminBtns) adminBtns.style.display = 'flex';
+     if (!document.getElementById('backupSection')) {
+        location.reload(); // Reload trang để tạo lại section
+        return;
+    }
+    var backupSec = document.getElementById('backupSection');
+    if (backupSec) backupSec.style.display = '';
     
     // Hiện lại tab
     var tabCC = document.getElementById('tabChamCong');
@@ -1622,10 +1626,17 @@ function adminMode() {
     var btn = document.getElementById('adminLoginBtn');
     if (btn) { btn.textContent = '🔓 Admin'; btn.style.background = '#10b981'; }
 }
-
+  
 function employeeMode() {
     isAdmin = false;
-    
+    document.querySelectorAll('.admin-only').forEach(function(el) {
+        el.style.display = 'none';
+    });
+  // 👉 XÓA SẠCH section sao lưu
+    var backupSec = document.getElementById('backupSection');
+    if (backupSec) backupSec.remove();
+
+  
     // Ẩn nút admin
     var adminBtns = document.getElementById('adminActionBtns');
     if (adminBtns) adminBtns.style.display = 'none';
