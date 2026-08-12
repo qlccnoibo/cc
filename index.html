@@ -3680,6 +3680,43 @@ summaryHTML += '<div class="stat-card-enhanced"><span class="stat-icon">💰</sp
     summaryHTML += '</div>';
   }
   summaryEl.innerHTML = summaryHTML;
+  // 👉 THÊM BẢNG THỐNG KÊ CÔNG ĐOẠN
+var taskCountMap = {};
+personalRecs.forEach(function(r) {
+    (r.tasks || []).forEach(function(t) {
+        var taskName = t.task || 'Khác';
+        if (!taskCountMap[taskName]) taskCountMap[taskName] = 0;
+        taskCountMap[taskName]++;
+    });
+});
+
+var taskRanking = Object.entries(taskCountMap).sort(function(a, b) { return b[1] - a[1]; });
+
+if (taskRanking.length > 0) {
+    var taskHtml = '<div style="margin-top:16px; background:white; border-radius:12px; padding:16px; box-shadow:0 1px 3px rgba(0,0,0,0.08);">';
+    taskHtml += '<h4 style="margin:0 0 12px 0;">📋 Thống kê công đoạn đã làm</h4>';
+    taskHtml += '<table class="stats-table-compact" style="width:100%;">';
+    taskHtml += '<tr><th>STT</th><th>Công đoạn</th><th>Số lần thực hiện</th><th>Tỉ lệ</th></tr>';
+    
+    var totalTasks = taskRanking.reduce(function(s, item) { return s + item[1]; }, 0);
+    
+    taskRanking.forEach(function(item, idx) {
+        var percent = Math.round((item[1] / totalTasks) * 100);
+        var barColor = ['#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#ef4444'][idx % 6];
+        taskHtml += '<tr>';
+        taskHtml += '<td>' + (idx + 1) + '</td>';
+        taskHtml += '<td><strong>' + item[0] + '</strong></td>';
+        taskHtml += '<td><span style="background:' + barColor + '; color:white; padding:3px 10px; border-radius:12px; font-weight:600; font-size:13px;">' + item[1] + ' lần</span></td>';
+        taskHtml += '<td>' + percent + '%</td>';
+        taskHtml += '</tr>';
+    });
+    
+    taskHtml += '</table></div>';
+    
+    summaryHTML += taskHtml;
+}
+
+summaryEl.innerHTML = summaryHTML;
   if (!personalRecs.length) { recordsEl.innerHTML = '<div class="muted" style="text-align:center;padding:16px;margin-top:12px;">Không có bản ghi nào phù hợp</div>'; }
   else {
     var allRecords = L(REC_KEY, []);
