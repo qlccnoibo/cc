@@ -3997,10 +3997,21 @@ window.loadDoubleShiftRanking = function() {
         dailyMap[key].recordCount++;
     });
     
-    // ===== BƯỚC 2: Lọc chỉ giữ ngày có >= 2 ca =====
+        // ===== BƯỚC 2: Tính tổng công, chỉ giữ ngày có tổng công > 1 =====
     var doubleShiftEntries = [];
     for (var key in dailyMap) {
-        if (dailyMap[key].recordCount >= 2) {
+        var totalCong = 0;
+        dailyMap[key].shiftNames.forEach(function(shiftName) {
+            if (shiftName === '1/2 Ca') totalCong += 0.5;
+            else if (shiftName === 'Nghỉ') totalCong += 0;
+            else totalCong += 1;
+        });
+        
+        // Lưu tổng công vào entry
+        dailyMap[key].totalCong = totalCong;
+        
+        // Chỉ là tăng ca nếu tổng công > 1
+        if (totalCong > 1) {
             doubleShiftEntries.push(dailyMap[key]);
         }
     }
@@ -4023,6 +4034,7 @@ window.loadDoubleShiftRanking = function() {
             date: entry.date,
             shiftNames: entry.shiftNames,
             recordCount: entry.recordCount,
+            totalCong: entry.totalCong,
             shifts: entry.shifts
         });
     });
