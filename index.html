@@ -2470,8 +2470,9 @@ html += '</div>';
   html += '<div class="stat-card-enhanced"><span class="stat-icon">⏱️</span><div class="stat-number">' + totalHours + 'h</div><div class="stat-label">Tổng giờ công' + (avgHoursPerDay ? ' (~' + avgHoursPerDay + 'h/ngày)' : '') + '</div></div>';
   html += '</div>';
   
-  html += '<div id="statsTableContainer"></div>';
   html += '<div class="chart-container" style="grid-column: 1 / -1;"><div class="chart-title">📊 Phân bố ca làm việc</div><div id="pieChart" class="pie-chart-wrapper"></div></div>';
+  html += '<div id="statsTableContainer"></div>';
+
   var insightHtml = generateInsights(rec); if (insightHtml) html += insightHtml;
   html += '<div style="display:none;gap:6px;margin-top:10px;flex-wrap:wrap" id="adminActionBtns"><button class="btn btn-sm" onclick="exportStatsCSV()">📊 Xuất CSV</button><button class="btn btn-sm btn-primary" onclick="exportStatsPDF()">📄 Xuất PDF</button><button class="btn btn-sm btn-danger" onclick="clearAllRecords()">🗑 Xóa tất cả</button></div>';  html += '</div>';
   html += '</div>';
