@@ -3212,7 +3212,30 @@ window.saveGroupFromModal = async function() {
       await showAlert('⚠️ Vui lòng chọn ít nhất 1 công đoạn làm việc!', 'Thiếu thông tin');
       return;
   }
-  
+  // Kiểm tra trùng hoàn toàn khi SỬA
+var newDate = (document.getElementById('modalDate')?.value || _editModalData.originalDate).split('T')[0];
+var shiftName = shift ? shift.name : '';
+var taskNames = (taskObjects || []).map(function(t) { return t.task; }).sort().join(',');
+
+var existingRecords = L(REC_KEY, []);
+var duplicateNames = [];
+
+_editModalData.employees.forEach(function(empName) {
+    var duplicate = existingRecords.some(function(r) {
+        var rTaskNames = (r.tasks || []).map(function(t) { return t.task; }).sort().join(',');
+        return r.employee === empName && 
+               r.date === newDate && 
+               (r.shift || '').split('(')[0].trim() === shiftName && 
+               rTaskNames === taskNames &&
+               r.id !== _editModalData.originalIds?.[_editModalData.employees.indexOf(empName)];
+    });
+    if (duplicate) duplicateNames.push(cleanEmployeeName(empName));
+});
+
+if (duplicateNames.length > 0) {
+    await showAlert('⚠️ Những nhân viên sau đã có bản ghi TRÙNG hoàn toàn ở ngày ' + formatDate(newDate) + ':\n\n' + duplicateNames.join(', ') + '\n\nKhông thể lưu.', 'Cảnh báo trùng');
+    return;
+}
   _editModalData.employees.forEach(function(empName, i) {
     allRecords.push({
       id: (_editModalData.originalIds && _editModalData.originalIds[i]) ? _editModalData.originalIds[i] : ('rec_' + Date.now() + '_' + i),
