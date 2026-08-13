@@ -4668,12 +4668,25 @@ window.moveGroupUp = function(gidx) {
     allRecords.splice.apply(allRecords, [insertIdx, 0].concat(group1Records));
     
     S(REC_KEY, allRecords);
-    window._statsData = allRecords;
-    // Thay vì applyStatsFilters() → render trực tiếp theo thứ tự mảng
 window._statsData = allRecords;
-renderStatsTable(allRecords);
-renderHeatmap(allRecords);
-renderCharts(allRecords);
+
+// Lấy dữ liệu đang hiển thị (đã filter)
+var currentFiltered = [];
+var fromDate = heatmapRange.start || '';
+var toDate = heatmapRange.end || '';
+var empFilter = document.getElementById('statsEmpInput')?.value?.trim() || '';
+var shiftFilter = document.getElementById('statsShiftFilter')?.value || '';
+var taskFilter = document.getElementById('statsTaskFilter')?.value || '';
+
+currentFiltered = allRecords.filter(function(r) {
+    if (fromDate && r.date < fromDate) return false;
+    if (toDate && r.date > toDate) return false;
+    if (shiftFilter && !r.shift.startsWith(shiftFilter)) return false;
+    if (taskFilter && !(r.tasks || []).some(function(t) { return t.task === taskFilter; })) return false;
+    return true;
+});
+
+renderStatsTable(currentFiltered);
 };
 
 window.moveGroupDown = function(gidx) {
@@ -4722,12 +4735,25 @@ window.moveGroupDown = function(gidx) {
     allRecords.splice.apply(allRecords, [insertIdx + group1Records.length, 0].concat(group1Records));
     
     S(REC_KEY, allRecords);
-    window._statsData = allRecords;
-    // Thay vì applyStatsFilters() → render trực tiếp theo thứ tự mảng
 window._statsData = allRecords;
-renderStatsTable(allRecords);
-renderHeatmap(allRecords);
-renderCharts(allRecords);
+
+// Lấy dữ liệu đang hiển thị (đã filter)
+var currentFiltered = [];
+var fromDate = heatmapRange.start || '';
+var toDate = heatmapRange.end || '';
+var empFilter = document.getElementById('statsEmpInput')?.value?.trim() || '';
+var shiftFilter = document.getElementById('statsShiftFilter')?.value || '';
+var taskFilter = document.getElementById('statsTaskFilter')?.value || '';
+
+currentFiltered = allRecords.filter(function(r) {
+    if (fromDate && r.date < fromDate) return false;
+    if (toDate && r.date > toDate) return false;
+    if (shiftFilter && !r.shift.startsWith(shiftFilter)) return false;
+    if (taskFilter && !(r.tasks || []).some(function(t) { return t.task === taskFilter; })) return false;
+    return true;
+});
+
+renderStatsTable(currentFiltered);
 };
 </script>
 </body>
