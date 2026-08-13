@@ -2232,18 +2232,70 @@ function saveG(m){S(GROUP_KEY,groups);log(m);rGFull();rGCompact();}
 function rEmp(){
   var el=document.getElementById('empList'); if (!el) return;
   el.innerHTML=''; var countEl=document.getElementById('empCount'); if(countEl)countEl.textContent=emp.length+' NV';
-  if(!emp.length){el.innerHTML='<div class="muted" style="padding:12px;text-align:center">Chưa có NV</div>';return;}
-  var sortedEmp=emp.slice().sort(function(a,b){return removeAccents(a.name).localeCompare(removeAccents(b.name));});
+  
+  // Lọc nhân viên nếu không phải Admin
+  var displayEmp = emp;
+  if (!isAdmin) {
+    var hiddenEmps = JSON.parse(localStorage.getItem('hidden_emps') || '[]');
+    displayEmp = emp.filter(function(e) { return hiddenEmps.indexOf(e.id) === -1; });
+    if(countEl) countEl.textContent = displayEmp.length + ' NV';
+  }
+  
+  if(!displayEmp.length){el.innerHTML='<div class="muted" style="padding:12px;text-align:center">Chưa có NV</div>';return;}
+  
+  var sortedEmp = displayEmp.slice().sort(function(a,b){return removeAccents(a.name).localeCompare(removeAccents(b.name));});
+  var hiddenEmps = JSON.parse(localStorage.getItem('hidden_emps') || '[]');
+  
   sortedEmp.forEach(function(e){ 
     var cleanName = cleanEmployeeName(e.name);
-    el.innerHTML+='<div class="list-item"><span style="flex:1">'+cleanName+'</span><div class="actions"><button class="btn btn-xs" data-id="'+e.id+'" data-act="edit">✏️</button><button class="btn btn-xs btn-danger" data-id="'+e.id+'" data-act="del">🗑</button></div></div>'; 
+    var isHidden = hiddenEmps.indexOf(e.id) > -1;
+    
+    el.innerHTML += '<div class="list-item">' +
+      '<span style="flex:1; ' + (isHidden ? 'opacity:0.5; text-decoration:line-through;' : '') + '">' + cleanName + '</span>' +
+      '<div class="actions">' +
+        (isAdmin ? '<button class="btn btn-xs" data-id="' + e.id + '" data-act="edit">✏️</button>' +
+        '<button class="btn btn-xs btn-danger" data-id="' + e.id + '" data-act="del">🗑</button>' +
+        '<button class="btn btn-xs" data-id="' + e.id + '" data-act="toggle" title="' + (isHidden ? 'Hiện' : 'Ẩn') + '">' + (isHidden ? '👁' : '🔒') + '</button>'
+        : '') +
+      '</div></div>'; 
   });
 }
 var elEL=document.getElementById('empList'); if(elEL){elEL.addEventListener('click',function(e){var b=e.target.closest('button[data-act]');if(b)hEA(b);});}
 async function hEA(b){
-  var a=b.dataset.act,id=b.dataset.id;
-  if(a==='del'){ var e=emp.find(function(x){return x.id===id;}); if(!e)return; if(!await showConfirm('Xóa nhân viên "'+e.name+'"?','Xóa'))return; emp=emp.filter(function(x){return x.id!==id;});S(EMP_KEY,emp);log('Xóa nhân viên: '+e.name);rEmp(); }
-  else if(a==='edit'){ var e=emp.find(function(x){return x.id===id;}); if(!e)return; var n=await showPrompt('Sửa tên nhân viên:',e.name,'Sửa'); if(!n||!n.trim())return; e.name=n.trim();S(EMP_KEY,emp);log('Sửa nhân viên: '+e.name);rEmp(); }
+  var a=b.dataset.act, id=b.dataset.id;
+  
+  if(a==='toggle'){
+    var hiddenEmps = JSON.parse(localStorage.getItem('hidden_emps') || '[]');
+    var idx = hiddenEmps.indexOf(id);
+    if(idx > -1){
+      hiddenEmps.splice(idx, 1);
+    } else {
+      hiddenEmps.push(id);
+    }
+    localStorage.setItem('hidden_emps', JSON.stringify(hiddenEmps));
+    rEmp();
+    return;
+  }
+  
+  if(a==='del'){ 
+    var e=emp.find(function(x){return x.id===id;}); 
+    if(!e)return; 
+    if(!await showConfirm('Xóa nhân viên "'+e.name+'"?','Xóa'))return; 
+    emp=emp.filter(function(x){return x.id!==id;});
+    S(EMP_KEY,emp);
+    log('Xóa nhân viên: '+e.name);
+    rEmp(); 
+  }
+  else if(a==='edit'){ 
+    var e=emp.find(function(x){return x.id===id;}); 
+    if(!e)return; 
+    var n=await showPrompt('Sửa tên nhân viên:',e.name,'Sửa'); 
+    if(!n||!n.trim())return; 
+    e.name=n.trim();
+    S(EMP_KEY,emp);
+    log('Sửa nhân viên: '+e.name);
+    rEmp(); 
+  }
 }
 window.addEmp=async function(){ var nEl=document.getElementById('empName'); if(!nEl)return; var n=nEl.value.trim(); if(!n){await showAlert('Nhập tên nhân viên!');return;} if(emp.some(function(e){return removeAccents(e.name.toLowerCase())===removeAccents(n.toLowerCase());})){await showAlert('Nhân viên "'+n+'" đã tồn tại!');return;} emp.push({id:'e'+Date.now(),name:n});S(EMP_KEY,emp);log('Thêm nhân viên: '+n);nEl.value='';rEmp(); };
 window.clrEmp=async function(){ if(!emp.length){await showAlert('Danh sách đã trống!');return;} if(!await showConfirm('XÓA TẤT CẢ NHÂN VIÊN?\nHành động này không thể hoàn tác!'))return; emp=[];S(EMP_KEY,emp);log('Xóa tất cả nhân viên');rEmp(); };
