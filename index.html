@@ -2298,6 +2298,13 @@ window.subAtt = async function(e, keepTimestamp) {
       emp.push({ id: 'e' + Date.now(), name: en }); 
       S(EMP_KEY, emp); 
     }
+
+     var shiftName = sh ? sh.split('(')[0].trim() : '';
+      if (shiftName !== 'Nghỉ' && (!ts || ts.length === 0)) {
+      await showAlert('⚠️ Vui lòng chọn ít nhất 1 công đoạn làm việc!', 'Thiếu thông tin');
+      return false;
+  }
+
     rec.push({ 
     id: 'rec_' + Date.now() + '_' + i + '_' + Math.random().toString(36).substr(2, 4), 
     employee: en, 
@@ -2317,10 +2324,6 @@ window.subAtt = async function(e, keepTimestamp) {
   });
   
   S(REC_KEY, rec); 
-// Lưu lên Google Sheets
-//if (USE_GOOGLE_SHEETS) {
-    //
-//}
   log('Chấm công: ' + selectedEmployees.length + ' NV - ' + formatDate(dt));
   var msg = '✅ Đã lưu chấm công cho ' + selectedEmployees.length + ' nhân viên!';
   if(note) msg += '\n📝 Ghi chú: ' + note.substring(0, 50) + (note.length > 50 ? '...' : '');
@@ -3196,6 +3199,13 @@ window.saveGroupFromModal = async function() {
   });
   
   var now = new Date().toISOString();
+    // Kiểm tra công đoạn khi sửa
+  var shiftName = shift ? shift.name : '';
+  if (taskObjects.length === 0 && shiftName !== 'Nghỉ') {
+      await showAlert('⚠️ Vui lòng chọn ít nhất 1 công đoạn làm việc!', 'Thiếu thông tin');
+      return;
+  }
+  
   _editModalData.employees.forEach(function(empName, i) {
     allRecords.push({
       id: (_editModalData.originalIds && _editModalData.originalIds[i]) ? _editModalData.originalIds[i] : ('rec_' + Date.now() + '_' + i),
