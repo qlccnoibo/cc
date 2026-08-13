@@ -2816,7 +2816,7 @@ function renderStatsTable(records){
   
   // ===== SẮP XẾP =====
   var sortedKeys = Object.keys(grouped);
-sortedKeys.sort(function(a, b) {
+  sortedKeys.sort(function(a, b) {
     var groupA = grouped[a];
     var groupB = grouped[b];
     
@@ -2839,7 +2839,11 @@ sortedKeys.sort(function(a, b) {
     if (orderA !== orderB) {
         return orderA - orderB;
     }
-    
+
+    // 3. Nếu người dùng đã sắp xếp tay → giữ nguyên thứ tự
+    if (window._manualSort) {
+    return 0;
+}
     // 3. Nhập trước → hiện trước
     return (groupA.firstTimestamp || '99').localeCompare(groupB.firstTimestamp || '99');
 });
@@ -2866,9 +2870,12 @@ sortedKeys.sort(function(a, b) {
       '<td class="note-cell" onclick="expandNote(event)" title="Bấm để xem đầy đủ">' + noteSafe + '</td>' +
       '<td><span class="eat-badge ' + eatBadge + '">' + (group.eat || '-') + '</span></td>' +
       '<td><div class="actions" style="gap:4px; justify-content:center;">' +
-  (isAdmin ? '<button class="btn btn-xs btn-primary btn-edit-group" data-gidx="' + dataIndex + '" title="Sửa nhóm">✏️</button>' +
-             '<button class="btn btn-xs btn-danger btn-del-group" data-gidx="' + dataIndex + '" title="Xóa nhóm">🗑</button>'
-           : '<span style="color:#94a3b8; font-size:11px;">🔒</span>') +
+  (isAdmin ? 
+    '<button class="btn btn-xs btn-primary btn-edit-group" data-gidx="' + dataIndex + '" title="Sửa nhóm">✏️</button>' +
+    '<button class="btn btn-xs btn-danger btn-del-group" data-gidx="' + dataIndex + '" title="Xóa nhóm">🗑</button>' +
+    '<button class="btn btn-xs" onclick="moveGroupUp(\'' + dataIndex + '\')" title="Lên">▲</button>' +
+    '<button class="btn btn-xs" onclick="moveGroupDown(\'' + dataIndex + '\')" title="Xuống">▼</button>'
+  : '<span style="color:#94a3b8; font-size:11px;">🔒</span>') +
 '</div></td></tr>';
   });
   html += '</table></div>';
@@ -4596,6 +4603,132 @@ window.syncFullToSheets = async function() {
 // Gọi ngay + cập nhật mỗi giây
 updateClock();
 setInterval(updateClock, 1000);
+window.moveGroupUp = function(gidx) {
+    window._manualSort = true;
+    var key = _tableGroupMap[gidx];
+    if (!key) return;
+    
+    var allRecords = L(REC_KEY, []);
+    
+    // Lấy danh sách các nhóm theo thứ tự hiển thị
+    var sortedKeys = Object.keys(_tableGroupMap);
+    var currentIdx = -1;
+    for (var i = 0; i < sortedKeys.length; i++) {
+        if (_tableGroupMap[sortedKeys[i]] === key) { currentIdx = i; break; }
+    }
+    
+    if (currentIdx <= 0) return; // Đã ở trên cùng
+    
+    var prevKey = _tableGroupMap[sortedKeys[currentIdx - 1]];
+    
+    // Hoán đổi vị trí 2 nhóm trong mảng records
+    var parts1 = key.split('|');
+    var parts2 = prevKey.split('|');
+    
+    var group1Date = parts1[0], group1Shift = parts1[1], group1Eat = parts1[2], group1Note = parts1[3] === '-' ? '' : parts1[3];
+    var group2Date = parts2[0], group2Shift = parts2[1], group2Eat = parts2[2], group2Note = parts2[3] === '-' ? '' : parts2[3];
+    var group1Tasks = []; try { group1Tasks = JSON.parse(parts1[4]); } catch(e) {}
+    var group2Tasks = []; try { group2Tasks = JSON.parse(parts2[4]); } catch(e) {}
+    
+    // Tìm index nhóm 1 và nhóm 2 trong allRecords
+    var idx1 = allRecords.findIndex(function(r) {
+        return r.date === group1Date && r.shift === group1Shift && r.eat === group1Eat && 
+               (r.note || '') === group1Note && JSON.stringify(r.tasks || []) === JSON.stringify(group1Tasks);
+    });
+    var idx2 = allRecords.findIndex(function(r) {
+        return r.date === group2Date && r.shift === group2Shift && r.eat === group2Eat && 
+               (r.note || '') === group2Note && JSON.stringify(r.tasks || []) === JSON.stringify(group2Tasks);
+    });
+    
+    if (idx1 === -1 || idx2 === -1) return;
+    
+    // Lấy tất cả bản ghi của nhóm 1
+    var group1Records = allRecords.filter(function(r) {
+        return r.date === group1Date && r.shift === group1Shift && r.eat === group1Eat && 
+               (r.note || '') === group1Note && JSON.stringify(r.tasks || []) === JSON.stringify(group1Tasks);
+    });
+    var group2Records = allRecords.filter(function(r) {
+        return r.date === group2Date && r.shift === group2Shift && r.eat === group2Eat && 
+               (r.note || '') === group2Note && JSON.stringify(r.tasks || []) === JSON.stringify(group2Tasks);
+    });
+    
+    // Xóa nhóm 1 khỏi mảng
+    allRecords = allRecords.filter(function(r) {
+        return !(r.date === group1Date && r.shift === group1Shift && r.eat === group1Eat && 
+               (r.note || '') === group1Note && JSON.stringify(r.tasks || []) === JSON.stringify(group1Tasks));
+    });
+    
+    // Tìm vị trí nhóm 2 trong mảng mới
+    var insertIdx = allRecords.findIndex(function(r) {
+        return r.date === group2Date && r.shift === group2Shift && r.eat === group2Eat && 
+               (r.note || '') === group2Note && JSON.stringify(r.tasks || []) === JSON.stringify(group2Tasks);
+    });
+    
+    // Chèn nhóm 1 vào TRƯỚC nhóm 2
+    allRecords.splice.apply(allRecords, [insertIdx, 0].concat(group1Records));
+    
+    S(REC_KEY, allRecords);
+    window._statsData = allRecords;
+    // Thay vì applyStatsFilters() → render trực tiếp theo thứ tự mảng
+window._statsData = allRecords;
+renderStatsTable(allRecords);
+renderHeatmap(allRecords);
+renderCharts(allRecords);
+};
+
+window.moveGroupDown = function(gidx) {
+    window._manualSort = true;
+    var key = _tableGroupMap[gidx];
+    if (!key) return;
+    
+    var allRecords = L(REC_KEY, []);
+    
+    var sortedKeys = Object.keys(_tableGroupMap);
+    var currentIdx = -1;
+    for (var i = 0; i < sortedKeys.length; i++) {
+        if (_tableGroupMap[sortedKeys[i]] === key) { currentIdx = i; break; }
+    }
+    
+    if (currentIdx === -1 || currentIdx >= sortedKeys.length - 1) return;
+    
+    var nextKey = _tableGroupMap[sortedKeys[currentIdx + 1]];
+    
+    var parts1 = key.split('|');
+    var parts2 = nextKey.split('|');
+    
+    var group1Date = parts1[0], group1Shift = parts1[1], group1Eat = parts1[2], group1Note = parts1[3] === '-' ? '' : parts1[3];
+    var group2Date = parts2[0], group2Shift = parts2[1], group2Eat = parts2[2], group2Note = parts2[3] === '-' ? '' : parts2[3];
+    var group1Tasks = []; try { group1Tasks = JSON.parse(parts1[4]); } catch(e) {}
+    var group2Tasks = []; try { group2Tasks = JSON.parse(parts2[4]); } catch(e) {}
+    
+    var group1Records = allRecords.filter(function(r) {
+        return r.date === group1Date && r.shift === group1Shift && r.eat === group1Eat && 
+               (r.note || '') === group1Note && JSON.stringify(r.tasks || []) === JSON.stringify(group1Tasks);
+    });
+    
+    allRecords = allRecords.filter(function(r) {
+        return !(r.date === group1Date && r.shift === group1Shift && r.eat === group1Eat && 
+               (r.note || '') === group1Note && JSON.stringify(r.tasks || []) === JSON.stringify(group1Tasks));
+    });
+    
+    var insertIdx = allRecords.findIndex(function(r) {
+        return r.date === group2Date && r.shift === group2Shift && r.eat === group2Eat && 
+               (r.note || '') === group2Note && JSON.stringify(r.tasks || []) === JSON.stringify(group2Tasks);
+    });
+    
+    if (insertIdx === -1) return;
+    
+    // Chèn nhóm 1 vào SAU nhóm 2
+    allRecords.splice.apply(allRecords, [insertIdx + group1Records.length, 0].concat(group1Records));
+    
+    S(REC_KEY, allRecords);
+    window._statsData = allRecords;
+    // Thay vì applyStatsFilters() → render trực tiếp theo thứ tự mảng
+window._statsData = allRecords;
+renderStatsTable(allRecords);
+renderHeatmap(allRecords);
+renderCharts(allRecords);
+};
 </script>
 </body>
 </html>
