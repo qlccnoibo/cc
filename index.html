@@ -3264,7 +3264,7 @@ window.saveGroupFromModal = async function() {
       await showAlert('⚠️ Vui lòng chọn ít nhất 1 công đoạn làm việc!', 'Thiếu thông tin');
       return;
   }
-  // Kiểm tra trùng hoàn toàn khi SỬA
+// Kiểm tra trùng hoàn toàn khi SỬA (loại trừ bản ghi đang sửa)
 var newDate = (document.getElementById('modalDate')?.value || _editModalData.originalDate).split('T')[0];
 var shiftName = shift ? shift.name : '';
 var taskNames = (taskObjects || []).map(function(t) { return t.task; }).sort().join(',');
@@ -3272,14 +3272,20 @@ var taskNames = (taskObjects || []).map(function(t) { return t.task; }).sort().j
 var existingRecords = L(REC_KEY, []);
 var duplicateNames = [];
 
-_editModalData.employees.forEach(function(empName) {
+// Lấy danh sách ID đang sửa để loại trừ
+var editingIds = _editModalData.originalIds || [];
+
+_editModalData.employees.forEach(function(empName, empIdx) {
     var duplicate = existingRecords.some(function(r) {
         var rTaskNames = (r.tasks || []).map(function(t) { return t.task; }).sort().join(',');
+        
+        // LOẠI TRỪ bản ghi đang sửa
+        if (editingIds.indexOf(r.id) > -1) return false;
+        
         return r.employee === empName && 
                r.date === newDate && 
                (r.shift || '').split('(')[0].trim() === shiftName && 
-               rTaskNames === taskNames &&
-               r.id !== _editModalData.originalIds?.[_editModalData.employees.indexOf(empName)];
+               rTaskNames === taskNames;
     });
     if (duplicate) duplicateNames.push(cleanEmployeeName(empName));
 });
