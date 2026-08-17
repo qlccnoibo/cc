@@ -1610,6 +1610,10 @@ function checkAdmin() {
 
 function adminMode() {
     isAdmin = true;
+  
+   // 👉 THÊM DÒNG NÀY - Load đầy đủ nhân viên
+    emp = L(EMP_KEY, []);
+    rEmp()
      if (!document.getElementById('backupSection')) {
         location.reload(); // Reload trang để tạo lại section
         return;
@@ -1629,6 +1633,15 @@ function adminMode() {
   
 function employeeMode() {
     isAdmin = false;
+  
+  // 👉 THÊM - Lọc bỏ nhân viên ẩn
+    var _hiddenEmps = JSON.parse(localStorage.getItem('hidden_emps') || '[]');
+    emp = L(EMP_KEY, []);
+    if (_hiddenEmps.length > 0) {
+        emp = emp.filter(function(e) { return _hiddenEmps.indexOf(e.id) === -1; });
+    }
+    rEmp();
+  
     document.querySelectorAll('.admin-only').forEach(function(el) {
         el.style.display = 'none';
     });
