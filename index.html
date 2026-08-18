@@ -1813,6 +1813,35 @@ function getVisibleEmp() {
 }
 var shifts=L(SHIFT_KEY,D_SHIFTS);
 var groups=L(GROUP_KEY,D_GROUPS);
+// ==================== KIỂM TRA NHÂN VIÊN ẨN ====================
+// Hàm lấy danh sách ID nhân viên bị ẩn từ localStorage
+function getHiddenEmployees() {
+    try {
+        return JSON.parse(localStorage.getItem('hidden_emps') || '[]');
+    } catch(e) {
+        return [];
+    }
+}
+
+// Hàm kiểm tra 1 nhân viên có bị ẩn không
+function isEmployeeHidden(empId) {
+    var hiddenEmps = getHiddenEmployees();
+    return hiddenEmps.indexOf(empId) > -1;
+}
+
+// Hàm lấy danh sách nhân viên hiển thị (lọc bỏ nhân viên ẩn nếu không phải Admin)
+function getVisibleEmployees() {
+    // Nếu là Admin thì thấy tất cả nhân viên
+    if (isAdmin) {
+        return emp;
+    }
+    
+    // Nếu không phải Admin thì lọc bỏ nhân viên bị ẩn
+    var hiddenEmps = getHiddenEmployees();
+    return emp.filter(function(e) {
+        return hiddenEmps.indexOf(e.id) === -1;
+    });
+}
 var expanded={};
 var selFile=null;
 var selectedEmployees = [];
@@ -2033,7 +2062,8 @@ function initAutocomplete() {
     var val=this.value; empAutocomplete.innerHTML='';
     if(!val){ empAutocomplete.style.display='none'; return; }
     var matches=[];
-    emp.forEach(function(e){ if(!isEmployeeSelected(e.name)&&containsExactChars(e.name,val)){ var nameLower=removeAccents(e.name).toLowerCase(),queryLower=removeAccents(val).toLowerCase(); matches.push({employee:e,matchIndex:nameLower.indexOf(queryLower)>=0?nameLower.indexOf(queryLower):999}); } });
+    var visibleEmp = getVisibleEmployees();
+    visibleEmp.forEach(function(e){ if(!isEmployeeSelected(e.name)&&containsExactChars(e.name,val)){ var nameLower=removeAccents(e.name).toLowerCase(),queryLower=removeAccents(val).toLowerCase(); matches.push({employee:e,matchIndex:nameLower.indexOf(queryLower)>=0?nameLower.indexOf(queryLower):999}); } });
     matches.sort(function(a,b){return a.matchIndex-b.matchIndex;});
     if(matches.length===0){ empAutocomplete.innerHTML='<div class="autocomplete-no-result">🔍 Không tìm thấy tên chứa "'+val+'"</div>'; empAutocomplete.style.display='block'; return; }
     var maxResults=Math.min(matches.length,10);
@@ -2740,7 +2770,9 @@ function initStatsAutocomplete() {
     var val = this.value.trim(); autocomplete.innerHTML = '';
     if (!val) { autocomplete.style.display = 'none'; applyStatsFilters(); return; }
     var matches = [];
-    emp.forEach(function(e) { var cleanName = cleanEmployeeName(e.name); if (containsExactChars(cleanName, val) || containsExactChars(e.name, val)) matches.push(e); });
+    var visibleEmp = getVisibleEmployees();
+    var visibleEmp = getVisibleEmployees();
+visibleEmp.forEach(function(e) { var cleanName = cleanEmployeeName(e.name); if (containsExactChars(cleanName, val) || containsExactChars(e.name, val)) matches.push(e); });
     matches.sort(function(a, b) { return removeAccents(cleanEmployeeName(a.name)).localeCompare(removeAccents(cleanEmployeeName(b.name))); });
     if (matches.length === 0) { autocomplete.innerHTML = '<div class="autocomplete-no-result">🔍 Không tìm thấy nhân viên</div>'; autocomplete.style.display = 'block'; return; }
     matches.slice(0, 8).forEach(function(e) {
@@ -3514,12 +3546,12 @@ function initModalAutocomplete() {
     list.innerHTML = '';
     if (!val) { list.style.display = 'none'; return; }
     
-    var hiddenEmps = JSON.parse(localStorage.getItem('hidden_emps') || '[]');
-    var matches = getVisibleEmp().filter(function(e) {
-    var isHidden = hiddenEmps.indexOf(e.id) > -1;
-    return !isHidden && (containsExactChars(cleanEmployeeName(e.name), val) || 
-           containsExactChars(e.name, val));
-});
+    // ✅ SỬA ĐÚNG: Dùng getVisibleEmployees() để lọc nhân viên ẩn
+    var matches = getVisibleEmployees().filter(function(e) {
+      return !_editModalData.employees.includes(e.name) && 
+             (containsExactChars(cleanEmployeeName(e.name), val) || 
+              containsExactChars(e.name, val));
+    });
     
     if (matches.length === 0) {
       list.innerHTML = '<div class="autocomplete-no-result">Không tìm thấy</div>';
@@ -3886,7 +3918,8 @@ function initPersonalEmpAutocomplete() {
     var val = this.value.trim(); autocomplete.innerHTML = '';
     if (!val) { autocomplete.style.display = 'none'; return; }
     var matches = [];
-    emp.forEach(function(e) { var cleanName = cleanEmployeeName(e.name); if (containsExactChars(cleanName, val) || containsExactChars(e.name, val)) matches.push(e); });
+var visibleEmp = getVisibleEmployees();
+visibleEmp.forEach(function(e) { var cleanName = cleanEmployeeName(e.name); if (containsExactChars(cleanName, val) || containsExactChars(e.name, val)) matches.push(e); });
     matches.sort(function(a,b) { return removeAccents(cleanEmployeeName(a.name)).localeCompare(removeAccents(cleanEmployeeName(b.name))); });
     if (matches.length === 0) { autocomplete.innerHTML = '<div class="autocomplete-no-result">🔍 Không tìm thấy nhân viên</div>'; autocomplete.style.display = 'block'; return; }
     matches.slice(0, 8).forEach(function(e) {
