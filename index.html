@@ -1553,7 +1553,7 @@
 
 <script>
   // ==================== GOOGLE SHEETS CONFIG ====================
-var GOOGLE_SHEETS_API = 'https://script.google.com/macros/s/AKfycbxlkYpXMUEyFcD576HUCuSkAh7eYOgl6jmrIUv32TQOGTK5YmjmjuCCOoDLgiIe_kCs4A/exec'; // ← THAY URL CỦA BẠN
+var GOOGLE_SHEETS_API = 'https://script.google.com/macros/s/AKfycbway2n_xK91Ef40-eu5qkTiStil48aR9LjSx_L8J_CGOhK_d1duj7EHsqKFoRuS7pvJ6A/exec'; // ← THAY URL CỦA BẠN
 var USE_GOOGLE_SHEETS = true; // true = dùng Google Sheets, false = dùng localStorage
 
 // Hàm đọc dữ liệu từ Google Sheets
@@ -1814,13 +1814,81 @@ function getVisibleEmp() {
 var shifts=L(SHIFT_KEY,D_SHIFTS);
 var groups=L(GROUP_KEY,D_GROUPS);
 // ==================== KIỂM TRA NHÂN VIÊN ẨN ====================
-// Hàm lấy danh sách ID nhân viên bị ẩn từ localStorage
+/// ==================== KIỂM TRA NHÂN VIÊN ẨN ====================
 function getHiddenEmployees() {
     try {
         return JSON.parse(localStorage.getItem('hidden_emps') || '[]');
     } catch(e) {
         return [];
     }
+}
+
+function isEmployeeHidden(empId) {
+    var hiddenEmps = getHiddenEmployees();
+    return hiddenEmps.indexOf(empId) > -1;
+}
+
+function getVisibleEmployees() {
+    if (isAdmin) {
+        return emp;
+    }
+    var hiddenEmps = getHiddenEmployees();
+    return emp.filter(function(e) {
+        return hiddenEmps.indexOf(e.id) === -1;
+    });
+}
+
+// ==================== ĐỒNG BỘ NHÂN VIÊN ẨN LÊN GOOGLE SHEETS ====================
+// ✅ THÊM 2 HÀM MỚI NÀY
+async function saveHiddenEmployees(hiddenEmps) {
+    localStorage.setItem('hidden_emps', JSON.stringify(hiddenEmps));
+    
+    if (USE_GOOGLE_SHEETS) {
+        try {
+            var rowsData = hiddenEmps.map(function(id) {
+                return [id];
+            });
+            
+            var url = GOOGLE_SHEETS_API + '?action=writeAll&sheet=hidden_emps';
+            var response = await fetch(url, {
+                method: 'POST',
+                body: JSON.stringify(rowsData)
+            });
+            
+            var result = await response.json();
+            console.log('✅ Đã đồng bộ danh sách ẩn: ' + hiddenEmps.length + ' nhân viên');
+        } catch(e) {
+            console.error('❌ Lỗi đồng bộ:', e);
+        }
+    }
+}
+
+async function loadHiddenEmployeesFromSheets() {
+    if (!USE_GOOGLE_SHEETS) return getHiddenEmployees();
+    
+    try {
+        var url = GOOGLE_SHEETS_API + '?action=read&sheet=hidden_emps';
+        var response = await fetch(url);
+        var result = await response.json();
+        
+        if (result && result.length > 0) {
+            var hiddenEmps = result.map(function(row) {
+                if (row && row.employeeId) return row.employeeId;
+                if (Array.isArray(row)) return row[0];
+                return row;
+            }).filter(function(id) {
+                return id && id !== '' && id !== 'employeeId';
+            });
+            
+            localStorage.setItem('hidden_emps', JSON.stringify(hiddenEmps));
+            console.log('✅ Đã tải danh sách ẩn từ Sheets: ' + hiddenEmps.length + ' nhân viên');
+            return hiddenEmps;
+        }
+    } catch(e) {
+        console.error('❌ Lỗi tải danh sách ẩn:', e);
+    }
+    
+    return getHiddenEmployees();
 }
 
 // Hàm kiểm tra 1 nhân viên có bị ẩn không
@@ -2314,17 +2382,27 @@ async function hEA(b){
   var a=b.dataset.act, id=b.dataset.id;
   
   if(a==='toggle'){
-    var hiddenEmps = JSON.parse(localStorage.getItem('hidden_emps') || '[]');
+    var hiddenEmps = getHiddenEmployees();
     var idx = hiddenEmps.indexOf(id);
+    var empInfo = emp.find(function(e) { return e.id === id; });
+    var empName = empInfo ? cleanEmployeeName(empInfo.name) : 'Nhân viên';
+    
     if(idx > -1){
-      hiddenEmps.splice(idx, 1);
+        // Đang ẩn → Hiện lại
+        hiddenEmps.splice(idx, 1);
+        await saveHiddenEmployees(hiddenEmps);
+        showAlert('✅ Đã hiện nhân viên "' + empName + '" trở lại!', 'Thành công');
     } else {
-      hiddenEmps.push(id);
+        // Đang hiện → Ẩn đi
+        hiddenEmps.push(id);
+        await saveHiddenEmployees(hiddenEmps);
+        showAlert('🔒 Đã ẩn nhân viên "' + empName + '"\n\n⚠️ Nhân viên này sẽ không hiển thị trong danh sách chấm công!', 'Đã ẩn');
     }
-    localStorage.setItem('hidden_emps', JSON.stringify(hiddenEmps));
+    
     rEmp();
+    refreshAllAutocompletes();
     return;
-  }
+}
   
   if(a==='del'){ 
     var e=emp.find(function(x){return x.id===id;}); 
@@ -4076,6 +4154,34 @@ if(attendanceForm) attendanceForm.onsubmit = function(e) { var keepTs = window._
 if(clearForm)clearForm.onclick=function(){rstForm();};
 if(impB){impB.disabled=true;impB.style.opacity='0.6';}
 
+// ==================== REFRESH AUTOCOMPLETES ====================
+// Hàm làm mới tất cả autocomplete sau khi thay đổi trạng thái ẩn/hiện
+function refreshAllAutocompletes() {
+    // Đóng tất cả autocomplete đang mở
+    document.querySelectorAll('.autocomplete-list').forEach(function(list) {
+        list.style.display = 'none';
+        list.innerHTML = '';
+    });
+    
+    // Clear input của tất cả autocomplete
+    var inputs = ['employeeInput', 'statsEmpInput', 'personalEmpInput', 'modalEmpInput'];
+    inputs.forEach(function(id) {
+        var input = document.getElementById(id);
+        if (input) {
+            input.value = '';
+        }
+    });
+    
+    // Cập nhật lại danh sách nhân viên chưa chấm công
+    if (typeof renderMissingEmployees === 'function') {
+        renderMissingEmployees();
+    }
+    
+    // Cập nhật lại danh sách nhân viên trong tab Quản lý
+    if (typeof rEmp === 'function') {
+        rEmp();
+    }
+}
 // ==================== INIT ====================
 function init(){
      if (!Date.prototype._toISOString) {
@@ -4087,6 +4193,13 @@ function init(){
         };
     }
   checkAdmin();
+  // ✅ THÊM ĐOẠN NÀY
+    if (USE_GOOGLE_SHEETS) {
+        loadHiddenEmployeesFromSheets().then(function() {
+            rEmp();
+            refreshAllAutocompletes();
+        });
+    }
      if (!isAdmin) {
     fetch('https://raw.githubusercontent.com/binhkca/cc/main/data.json?t=' + Date.now())
         .then(function(r) { return r.json(); })
