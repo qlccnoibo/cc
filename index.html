@@ -1610,10 +1610,9 @@ function checkAdmin() {
 
 function adminMode() {
     isAdmin = true;
-  
-   // 👉 THÊM DÒNG NÀY - Load đầy đủ nhân viên
+     // 👉 THÊM DÒNG NÀY - Load đầy đủ nhân viên
     emp = L(EMP_KEY, []);
-    rEmp()
+    rEmp();
      if (!document.getElementById('backupSection')) {
         location.reload(); // Reload trang để tạo lại section
         return;
@@ -1633,15 +1632,13 @@ function adminMode() {
   
 function employeeMode() {
     isAdmin = false;
-  
-  // 👉 THÊM - Lọc bỏ nhân viên ẩn
+     // 👉 THÊM - Lọc bỏ nhân viên ẩn
     var _hiddenEmps = JSON.parse(localStorage.getItem('hidden_emps') || '[]');
     emp = L(EMP_KEY, []);
     if (_hiddenEmps.length > 0) {
         emp = emp.filter(function(e) { return _hiddenEmps.indexOf(e.id) === -1; });
     }
     rEmp();
-  
     document.querySelectorAll('.admin-only').forEach(function(el) {
         el.style.display = 'none';
     });
@@ -1805,6 +1802,15 @@ async function S(key, value) {
 function log(m){var l=L(AUDIT_KEY,[]);l.unshift({time:new Date().toISOString(),msg:m});if(l.length>200)l.length=200;S(AUDIT_KEY,l);renderAudit();}
 
 var emp=L(EMP_KEY,[{id:'e1',name:'Nguyễn Văn A'},{id:'e2',name:'Trần Thị B'}]);
+var _hiddenEmps = JSON.parse(localStorage.getItem('hidden_emps') || '[]');
+if (_hiddenEmps.length > 0) {
+    emp = emp.filter(function(e) { return _hiddenEmps.indexOf(e.id) === -1; });
+}
+// Hàm lấy danh sách nhân viên hiển thị (đã lọc ẩn)
+function getVisibleEmp() {
+    var hiddenEmps = JSON.parse(localStorage.getItem('hidden_emps') || '[]');
+    return emp.filter(function(e) { return hiddenEmps.indexOf(e.id) === -1; });
+}
 var shifts=L(SHIFT_KEY,D_SHIFTS);
 var groups=L(GROUP_KEY,D_GROUPS);
 var expanded={};
@@ -2481,6 +2487,109 @@ var heatmapRange = { start: null, end: null };
 var _tableGroupIndex = 0;
 var _tableGroupMap = {};
 
+// ==================== PHÂN TRANG ====================
+var PaginationManager = {
+    overview: {
+        currentPage: 1,
+        itemsPerPage: 30,
+        data: [],
+        containerId: 'statsTableContainer'
+    },
+    taskDetail: {
+        currentPage: 1,
+        itemsPerPage: 30,
+        data: [],
+        containerId: 'taskDetailTable'
+    }
+};
+
+// Hàm tạo nút phân trang
+function buildPaginationControls(tableType) {
+    var state = PaginationManager[tableType];
+    var totalPages = Math.ceil(state.data.length / state.itemsPerPage);
+    
+    if (totalPages <= 1) return ''; // Không cần phân trang nếu ít dữ liệu
+    
+    var html = '<div class="pagination-controls" style="display:flex;gap:6px;justify-content:center;align-items:center;margin-top:12px;flex-wrap:wrap;padding:10px;background:#f8fafc;border-radius:8px;">';
+    
+    // Nút "Đầu"
+    html += '<button class="btn btn-xs" onclick="goToPage(\'' + tableType + '\', 1)" ' + 
+            (state.currentPage === 1 ? 'disabled' : '') + '>«</button>';
+    
+    // Nút "Trước"
+    html += '<button class="btn btn-xs" onclick="goToPage(\'' + tableType + '\', ' + (state.currentPage - 1) + ')" ' + 
+            (state.currentPage === 1 ? 'disabled' : '') + '>‹</button>';
+    
+    // Số trang
+    var startPage = Math.max(1, state.currentPage - 2);
+    var endPage = Math.min(totalPages, startPage + 4);
+    startPage = Math.max(1, endPage - 4);
+    
+    for (var i = startPage; i <= endPage; i++) {
+        if (i === state.currentPage) {
+            html += '<button class="btn btn-xs btn-primary" style="font-weight:700;min-width:32px;">' + i + '</button>';
+        } else {
+            html += '<button class="btn btn-xs" onclick="goToPage(\'' + tableType + '\', ' + i + ')" style="min-width:32px;">' + i + '</button>';
+        }
+    }
+    
+    // Nút "Sau"
+    html += '<button class="btn btn-xs" onclick="goToPage(\'' + tableType + '\', ' + (state.currentPage + 1) + ')" ' + 
+            (state.currentPage === totalPages ? 'disabled' : '') + '>›</button>';
+    
+    // Nút "Cuối"
+    html += '<button class="btn btn-xs" onclick="goToPage(\'' + tableType + '\', ' + totalPages + ')" ' + 
+            (state.currentPage === totalPages ? 'disabled' : '') + '>»</button>';
+    
+    // Chọn số dòng
+    html += '<select onchange="changeItemsPerPage(\'' + tableType + '\', this.value)" style="padding:4px 8px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;cursor:pointer;background:white;">';
+    [10, 20, 30, 50, 100].forEach(function(num) {
+        html += '<option value="' + num + '" ' + (state.itemsPerPage === num ? 'selected' : '') + '>' + num + ' dòng</option>';
+    });
+    html += '</select>';
+    
+    html += '</div>';
+    
+    return html;
+}
+
+// Hàm điều hướng trang
+window.goToPage = function(tableType, page) {
+    var state = PaginationManager[tableType];
+    var totalPages = Math.ceil(state.data.length / state.itemsPerPage);
+    
+    if (page < 1 || page > totalPages) return;
+    state.currentPage = page;
+    
+    // Render lại bảng tương ứng
+    if (tableType === 'overview') {
+        var container = document.getElementById('statsTableContainer');
+        if (container) {
+            renderCurrentOverviewPage(container);
+        }
+    } else if (tableType === 'taskDetail') {
+        var container = document.getElementById('taskDetailTable');
+        if (container) {
+            renderCurrentTaskDetailPage(container);
+        }
+    }
+};
+
+// Hàm đổi số dòng mỗi trang
+window.changeItemsPerPage = function(tableType, value) {
+    var state = PaginationManager[tableType];
+    state.itemsPerPage = parseInt(value);
+    state.currentPage = 1;
+    
+    if (tableType === 'overview') {
+        var container = document.getElementById('statsTableContainer');
+        if (container) renderCurrentOverviewPage(container);
+    } else if (tableType === 'taskDetail') {
+        var container = document.getElementById('taskDetailTable');
+        if (container) renderCurrentTaskDetailPage(container);
+    }
+};
+
 function renderStatistics() {
   var rec = L(REC_KEY, []);
   var el = document.getElementById('statsContent');
@@ -2839,130 +2948,143 @@ function renderCharts(records) {
     document.getElementById('pieChart').innerHTML = html;
 }
 
-function renderStatsTable(records){
-  var container = document.getElementById('statsTableContainer');
-  if(!container) return;
-  if(!records.length){
-    container.innerHTML = '<div class="muted" style="text-align:center;padding:16px">Không có bản ghi phù hợp</div>';
-    return;
-  }
-  _tableGroupIndex = 0;
-  _tableGroupMap = {};
-  
-  // ===== GOM NHÓM + LƯU TIMESTAMP =====
-  var grouped = {};
-  records.forEach(function(record){
-    var key = record.date + '|' + (record.shift||'') + '|' + (record.eat||'') + '|' + (record.note||'') + '|' + JSON.stringify(record.tasks||[]);
-    if(!grouped[key]) {
-      grouped[key] = { 
-        date: record.date, 
-        shift: record.shift, 
-        eat: record.eat, 
-        note: record.note, 
-        tasks: record.tasks || [], 
-        employees: [],
-        firstTimestamp: record.timestamp || '9999'
-      };
+function renderStatsTable(records) {
+    var container = document.getElementById('statsTableContainer');
+    if (!container) return;
+    
+    if (!records.length) {
+        container.innerHTML = '<div class="muted" style="text-align:center;padding:16px">Không có bản ghi phù hợp</div>';
+        return;
     }
     
-    var cleanName = cleanEmployeeName(record.employee);
-    if (grouped[key].employees.indexOf(cleanName) === -1) {
-      grouped[key].employees.push(cleanName);
-    }
+    _tableGroupIndex = 0;
+    _tableGroupMap = {};
     
-    // Lấy timestamp nhỏ nhất (sớm nhất) trong nhóm
-    if (record.timestamp && record.timestamp < grouped[key].firstTimestamp) {
-      grouped[key].firstTimestamp = record.timestamp;
-    }
-  });
-  
-    var html = '<div style="overflow-x:auto"><table class="stats-table-compact">';
-  html += '<tr><th>Ngày</th><th>Nhân viên</th><th>Ca làm</th><th>Công việc</th><th>Ghi chú</th><th>Ăn</th><th style="width:110px">Thao tác</th></tr>';
-  
-  // ===== SẮP XẾP =====
-  var sortedKeys = Object.keys(grouped);
-  sortedKeys.sort(function(a, b) {
-    var groupA = grouped[a];
-    var groupB = grouped[b];
-    
-    // 1. Ngày CŨ nhất trước
-    if (groupA.date !== groupB.date) {
-        return groupA.date.localeCompare(groupB.date);
-    }
-    
-    // 2. Thứ tự Ca
-    var shiftNameA = groupA.shift ? groupA.shift.split('(')[0].trim() : '';
-    var shiftNameB = groupB.shift ? groupB.shift.split('(')[0].trim() : '';
-    
-    var order = ['Ca 1', 'Ca 2', 'Ca 3', 'HC', '1/2 Ca', 'Nghỉ'];
-    var orderA = order.indexOf(shiftNameA);
-    var orderB = order.indexOf(shiftNameB);
-    
-    if (orderA === -1) orderA = 99;
-    if (orderB === -1) orderB = 99;
-    
-    if (orderA !== orderB) {
-        return orderA - orderB;
-    }
-
-    // 3. Nếu người dùng đã sắp xếp tay → giữ nguyên thứ tự
-    if (window._manualSort) {
-    return 0;
-}
-    // 3. Nhập trước → hiện trước
-    return (groupA.firstTimestamp || '99').localeCompare(groupB.firstTimestamp || '99');
-});
-  
-  // ===== RENDER =====
-  sortedKeys.forEach(function(key, idx){
-    var group = grouped[key];
-    var shiftName = group.shift ? group.shift.split('(')[0].trim() : '-';
-    var tasks = group.tasks.length ? group.tasks.map(function(t){ return t.task; }).join(', ') : '-';
-    var noteText = group.note || '-';
-    var noteSafe = escHtml(noteText);
-    var eatBadge = group.eat === 'Có' ? 'yes' : 'no';
-    var employeeTags = '';
-    group.employees.forEach(function(empName){ 
-      employeeTags += '<span class="emp-tag">' + escHtml(cleanEmployeeName(empName)) + '</span> '; 
+    // ===== GOM NHÓM (giữ nguyên code cũ) =====
+    var grouped = {};
+    records.forEach(function(record) {
+        var key = record.date + '|' + (record.shift||'') + '|' + (record.eat||'') + '|' + (record.note||'') + '|' + JSON.stringify(record.tasks||[]);
+        if(!grouped[key]) {
+            grouped[key] = { 
+                date: record.date, 
+                shift: record.shift, 
+                eat: record.eat, 
+                note: record.note, 
+                tasks: record.tasks || [], 
+                employees: [],
+                firstTimestamp: record.timestamp || '9999'
+            };
+        }
+        var cleanName = cleanEmployeeName(record.employee);
+        if (grouped[key].employees.indexOf(cleanName) === -1) {
+            grouped[key].employees.push(cleanName);
+        }
+        if (record.timestamp && record.timestamp < grouped[key].firstTimestamp) {
+            grouped[key].firstTimestamp = record.timestamp;
+        }
     });
-    var dataIndex = 'gidx_' + (idx + 1);
-    _tableGroupMap[dataIndex] = key;
-    html += '<tr>' +
-      '<td class="date-compact">' + formatDate(group.date) + '</td>' +
-      '<td><div class="employee-group">' + employeeTags + '</div></td>' +
-      '<td><span class="shift-badge ' + getShiftColorClass(shiftName) + '">' + escHtml(shiftName) + '</span></td>' +
-      '<td class="task-list-compact">' + highlightTruongCa(tasks) + '</td>' +
-      '<td class="note-cell" onclick="expandNote(event)" title="Bấm để xem đầy đủ">' + noteSafe + '</td>' +
-      '<td><span class="eat-badge ' + eatBadge + '">' + (group.eat || '-') + '</span></td>' +
-      '<td><div class="actions" style="gap:4px; justify-content:center;">' +
-  (isAdmin ? 
-    '<button class="btn btn-xs btn-primary btn-edit-group" data-gidx="' + dataIndex + '" title="Sửa nhóm">✏️</button>' +
-    '<button class="btn btn-xs btn-danger btn-del-group" data-gidx="' + dataIndex + '" title="Xóa nhóm">🗑</button>' +
-    '<button class="btn btn-xs" onclick="moveGroupUp(\'' + dataIndex + '\')" title="Lên">▲</button>' +
-    '<button class="btn btn-xs" onclick="moveGroupDown(\'' + dataIndex + '\')" title="Xuống">▼</button>'
-  : '<span style="color:#94a3b8; font-size:11px;">🔒</span>') +
-'</div></td></tr>';
-  });
-  html += '</table></div>';
-  container.innerHTML = html;
-  container.querySelectorAll('.btn-del-group').forEach(function(btn) { 
-    btn.addEventListener('click', function() { 
-      var key = _tableGroupMap[this.getAttribute('data-gidx')]; 
-      if (key) deleteRecordGroup(key); 
-    }); 
-  });
-  container.querySelectorAll('.remove-tag').forEach(function(btn) {
-  btn.addEventListener('click', function(e) {
-    e.stopPropagation();
-    removeSelectedEmployee(this.dataset.name);
-  });
-});
-container.querySelectorAll('.btn-edit-group').forEach(function(btn) { 
-  btn.addEventListener('click', function() { 
-    var key = _tableGroupMap[this.getAttribute('data-gidx')]; 
-    if (key) openEditModal(key); // <-- GỌI HÀM MỚI
-  }); 
-});
+    
+    // ===== SẮP XẾP =====
+    var sortedKeys = Object.keys(grouped);
+    sortedKeys.sort(function(a, b) {
+        var groupA = grouped[a];
+        var groupB = grouped[b];
+        if (groupA.date !== groupB.date) return groupA.date.localeCompare(groupB.date);
+        var shiftNameA = groupA.shift ? groupA.shift.split('(')[0].trim() : '';
+        var shiftNameB = groupB.shift ? groupB.shift.split('(')[0].trim() : '';
+        var order = ['Ca 1', 'Ca 2', 'Ca 3', 'HC', '1/2 Ca', 'Nghỉ'];
+        var orderA = order.indexOf(shiftNameA);
+        var orderB = order.indexOf(shiftNameB);
+        if (orderA === -1) orderA = 99;
+        if (orderB === -1) orderB = 99;
+        if (orderA !== orderB) return orderA - orderB;
+        if (window._manualSort) return 0;
+        return (groupA.firstTimestamp || '99').localeCompare(groupB.firstTimestamp || '99');
+    });
+    
+    // ===== LƯU VÀO PAGINATION STATE =====
+    var allGroups = sortedKeys.map(function(key) { 
+        return { key: key, data: grouped[key] }; 
+    });
+    
+    PaginationManager.overview.data = allGroups;
+    PaginationManager.overview.currentPage = 1; // Reset về trang 1 khi lọc mới
+    
+    // ===== RENDER TRANG HIỆN TẠI =====
+    renderCurrentOverviewPage(container);
+}
+
+// Hàm render trang hiện tại cho bảng tổng quan
+function renderCurrentOverviewPage(container) {
+    var state = PaginationManager.overview;
+    var startIdx = (state.currentPage - 1) * state.itemsPerPage;
+    var endIdx = Math.min(startIdx + state.itemsPerPage, state.data.length);
+    var pageData = state.data.slice(startIdx, endIdx);
+    
+    var html = '<div style="overflow-x:auto"><table class="stats-table-compact">';
+    html += '<tr><th>STT</th><th>Ngày</th><th>Nhân viên</th><th>Ca làm</th><th>Công việc</th><th>Ghi chú</th><th>Ăn</th><th style="width:110px">Thao tác</th></tr>';
+    
+    pageData.forEach(function(item, idx) {
+        var globalIdx = startIdx + idx;
+        var group = item.data;
+        var dataIndex = 'gidx_' + (globalIdx + 1);
+        _tableGroupMap[dataIndex] = item.key;
+        
+        var shiftName = group.shift ? group.shift.split('(')[0].trim() : '-';
+        var tasks = group.tasks.length ? group.tasks.map(function(t){ return t.task; }).join(', ') : '-';
+        var noteText = group.note || '-';
+        var noteSafe = escHtml(noteText);
+        var eatBadge = group.eat === 'Có' ? 'yes' : 'no';
+        var employeeTags = '';
+        group.employees.forEach(function(empName){ 
+            employeeTags += '<span class="emp-tag">' + escHtml(cleanEmployeeName(empName)) + '</span> '; 
+        });
+        
+        html += '<tr>' +
+            '<td>' + (globalIdx + 1) + '</td>' +
+            '<td class="date-compact">' + formatDate(group.date) + '</td>' +
+            '<td><div class="employee-group">' + employeeTags + '</div></td>' +
+            '<td><span class="shift-badge ' + getShiftColorClass(shiftName) + '">' + escHtml(shiftName) + '</span></td>' +
+            '<td class="task-list-compact">' + highlightTruongCa(tasks) + '</td>' +
+            '<td class="note-cell" onclick="expandNote(event)" title="Bấm để xem đầy đủ">' + noteSafe + '</td>' +
+            '<td><span class="eat-badge ' + eatBadge + '">' + (group.eat || '-') + '</span></td>' +
+            '<td><div class="actions" style="gap:4px; justify-content:center;">' +
+                (isAdmin ? 
+                    '<button class="btn btn-xs btn-primary btn-edit-group" data-gidx="' + dataIndex + '" title="Sửa nhóm">✏️</button>' +
+                    '<button class="btn btn-xs btn-danger btn-del-group" data-gidx="' + dataIndex + '" title="Xóa nhóm">🗑</button>' +
+                    '<button class="btn btn-xs" onclick="moveGroupUp(\'' + dataIndex + '\')" title="Lên">▲</button>' +
+                    '<button class="btn btn-xs" onclick="moveGroupDown(\'' + dataIndex + '\')" title="Xuống">▼</button>'
+                : '<span style="color:#94a3b8; font-size:11px;">🔒</span>') +
+            '</div></td></tr>';
+    });
+    
+    html += '</table></div>';
+    
+    // Thêm thông tin phân trang
+    html += '<div style="display:flex;justify-content:space-between;margin-top:8px;font-size:12px;color:#64748b;">';
+    html += '<span>Hiển thị ' + (startIdx + 1) + '-' + endIdx + ' / ' + state.data.length + ' nhóm</span>';
+    html += '<span>Trang ' + state.currentPage + ' / ' + Math.ceil(state.data.length / state.itemsPerPage) + '</span>';
+    html += '</div>';
+    
+    // Thêm controls phân trang
+    html += buildPaginationControls('overview');
+    
+    container.innerHTML = html;
+    
+    // Gắn sự kiện
+    container.querySelectorAll('.btn-del-group').forEach(function(btn) { 
+        btn.addEventListener('click', function() { 
+            var key = _tableGroupMap[this.getAttribute('data-gidx')]; 
+            if (key) deleteRecordGroup(key); 
+        }); 
+    });
+    
+    container.querySelectorAll('.btn-edit-group').forEach(function(btn) { 
+        btn.addEventListener('click', function() { 
+            var key = _tableGroupMap[this.getAttribute('data-gidx')]; 
+            if (key) openEditModal(key);
+        }); 
+    });
 }
 
 window.expandNote = function(event) { event.currentTarget.classList.toggle('expanded'); };
@@ -3392,10 +3514,12 @@ function initModalAutocomplete() {
     list.innerHTML = '';
     if (!val) { list.style.display = 'none'; return; }
     
-    var matches = emp.filter(function(e) {
-      return !_editModalData.employees.includes(e.name) && 
-             containsExactChars(e.name, val);
-    });
+    var hiddenEmps = JSON.parse(localStorage.getItem('hidden_emps') || '[]');
+    var matches = getVisibleEmp().filter(function(e) {
+    var isHidden = hiddenEmps.indexOf(e.id) > -1;
+    return !isHidden && (containsExactChars(cleanEmployeeName(e.name), val) || 
+           containsExactChars(e.name, val));
+});
     
     if (matches.length === 0) {
       list.innerHTML = '<div class="autocomplete-no-result">Không tìm thấy</div>';
@@ -3568,76 +3692,101 @@ window.filterTaskDetailByEmployee = function(empName) {
 };
 
 function renderTaskDetailTable(records) {
-  // Gom nhóm: cùng ngày + cùng ca + cùng task -> gộp chung người thực hiện
-  var grouped = {};
-  
-  records.forEach(function(rec) {
-    var empName = cleanEmployeeName(rec.employee);
-    var shiftName = rec.shift ? rec.shift.split('(')[0].trim() : '-';
-    // Key gộp nhóm: Ngày + Ca (không bao gồm tên người)
-    var key = rec.date + '|' + shiftName;
+    // Gom nhóm: cùng ngày + cùng ca + cùng task -> gộp chung người thực hiện
+    var grouped = {};
     
-    if (!grouped[key]) {
-      grouped[key] = {
-        date: rec.date,
-        shiftName: shiftName,
-        employees: [],
-        note: rec.note || ''
-      };
-    }
-    
-    // Thêm người vào danh sách (tránh trùng)
-    if (grouped[key].employees.indexOf(empName) === -1) {
-      grouped[key].employees.push(empName);
-    }
-    
-    // Ưu tiên ghi chú không rỗng
-    if (rec.note && rec.note.trim() !== '') {
-      grouped[key].note = rec.note;
-    }
-  });
-  
-  // Chuyển thành mảng và sắp xếp
-  var groupedArray = Object.values(grouped);
-  groupedArray.sort(function(a, b) {
-    if (a.date !== b.date) return b.date.localeCompare(a.date);
-    return getShiftOrder(a.shiftName) - getShiftOrder(b.shiftName);
-  });
-  
-  var html = '<h4>📋 Chi tiết chấm công</h4>';
-  
-  if (groupedArray.length === 0) {
-    html += '<div class="muted" style="text-align:center;padding:20px;">Không có dữ liệu chi tiết</div>';
-  } else {
-    html += '<div style="overflow-x:auto;"><table class="stats-table-compact">';
-    html += '<tr><th>Ngày</th><th>Ca</th><th>Người thực hiện</th><th>Ghi chú</th></tr>';
-    
-    groupedArray.forEach(function(item) {
-      var noteStr = item.note || '-';
-      // Tạo chuỗi danh sách người thực hiện
-      var employeeList = '';
-      item.employees.forEach(function(emp) {
-        employeeList += '<span class="emp-tag">' + escHtml(emp) + '</span> ';
-      });
-      
-      html += '<tr>' +
-        '<td class="date-compact">' + formatDate(item.date) + '</td>' +
-        '<td><span class="shift-badge ' + getShiftColorClass(item.shiftName) + '">' + item.shiftName + '</span></td>' +
-        '<td><div class="employee-group">' + employeeList + '</div></td>' +
-        '<td class="note-cell-personal" onclick="showNotePopup(event, \'' + 
-          noteStr.replace(/'/g, "\\'").replace(/"/g, '&quot;') + '\')" ' +
-          'onmouseenter="showNotePopup(event, \'' + 
-           noteStr.replace(/'/g, "\\'").replace(/"/g, '&quot;') + '\')" ' +
-          'onmouseleave="hideNotePopup()" title="Bấm để xem đầy đủ">' + 
-          (noteStr.length > 30 ? noteStr.substring(0, 30) + '...' : noteStr) + 
-        '</td>' +
-      '</tr>';
+    records.forEach(function(rec) {
+        var empName = cleanEmployeeName(rec.employee);
+        var shiftName = rec.shift ? rec.shift.split('(')[0].trim() : '-';
+        var key = rec.date + '|' + shiftName;
+        
+        if (!grouped[key]) {
+            grouped[key] = {
+                date: rec.date,
+                shiftName: shiftName,
+                employees: [],
+                note: rec.note || ''
+            };
+        }
+        
+        if (grouped[key].employees.indexOf(empName) === -1) {
+            grouped[key].employees.push(empName);
+        }
+        
+        if (rec.note && rec.note.trim() !== '') {
+            grouped[key].note = rec.note;
+        }
     });
     
-    html += '</table></div>';
-  }
-  
-  document.getElementById('taskDetailTable').innerHTML = html;
+    // Chuyển thành mảng và sắp xếp
+    var groupedArray = Object.values(grouped);
+    groupedArray.sort(function(a, b) {
+        if (a.date !== b.date) return b.date.localeCompare(a.date);
+        return getShiftOrder(a.shiftName) - getShiftOrder(b.shiftName);
+    });
+    
+    // ===== LƯU VÀO PAGINATION STATE =====
+    PaginationManager.taskDetail.data = groupedArray;
+    PaginationManager.taskDetail.currentPage = 1;
+    
+    // ===== RENDER =====
+    var container = document.getElementById('taskDetailTable');
+    if (container) {
+        renderCurrentTaskDetailPage(container);
+    }
+}
+
+// Hàm render trang hiện tại cho bảng chi tiết
+function renderCurrentTaskDetailPage(container) {
+    var state = PaginationManager.taskDetail;
+    var startIdx = (state.currentPage - 1) * state.itemsPerPage;
+    var endIdx = Math.min(startIdx + state.itemsPerPage, state.data.length);
+    var pageData = state.data.slice(startIdx, endIdx);
+    
+    var html = '<h4>📋 Chi tiết chấm công</h4>';
+    
+    if (pageData.length === 0) {
+        html += '<div class="muted" style="text-align:center;padding:20px;">Không có dữ liệu chi tiết</div>';
+    } else {
+        html += '<div style="overflow-x:auto;"><table class="stats-table-compact">';
+        html += '<tr><th>STT</th><th>Ngày</th><th>Ca</th><th>Người thực hiện</th><th>Ghi chú</th></tr>';
+        
+        pageData.forEach(function(item, idx) {
+            var globalIdx = startIdx + idx;
+            var noteStr = item.note || '-';
+            var employeeList = '';
+            item.employees.forEach(function(emp) {
+                employeeList += '<span class="emp-tag">' + escHtml(emp) + '</span> ';
+            });
+            
+            html += '<tr>' +
+                '<td>' + (globalIdx + 1) + '</td>' +
+                '<td class="date-compact">' + formatDate(item.date) + '</td>' +
+                '<td><span class="shift-badge ' + getShiftColorClass(item.shiftName) + '">' + item.shiftName + '</span></td>' +
+                '<td><div class="employee-group">' + employeeList + '</div></td>' +
+                '<td class="note-cell-personal" onclick="showNotePopup(event, \'' + 
+                    noteStr.replace(/'/g, "\\'").replace(/"/g, '&quot;') + '\')" ' +
+                    'onmouseenter="showNotePopup(event, \'' + 
+                    noteStr.replace(/'/g, "\\'").replace(/"/g, '&quot;') + '\')" ' +
+                    'onmouseleave="hideNotePopup()" title="Bấm để xem đầy đủ">' + 
+                    (noteStr.length > 30 ? noteStr.substring(0, 30) + '...' : noteStr) + 
+                '</td>' +
+            '</tr>';
+        });
+        
+        html += '</table></div>';
+        
+        // Thêm thông tin phân trang
+        html += '<div style="display:flex;justify-content:space-between;margin-top:8px;font-size:12px;color:#64748b;">';
+        html += '<span>Hiển thị ' + (startIdx + 1) + '-' + endIdx + ' / ' + state.data.length + ' bản ghi</span>';
+        html += '<span>Trang ' + state.currentPage + ' / ' + Math.ceil(state.data.length / state.itemsPerPage) + '</span>';
+        html += '</div>';
+        
+        // Thêm controls phân trang
+        html += buildPaginationControls('taskDetail');
+    }
+    
+    container.innerHTML = html;
 }
 // ==================== EXPORT & CLEAR ====================
 window.exportStatsCSV = function(){
