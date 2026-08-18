@@ -1434,6 +1434,30 @@
               <button class="btn btn-sm btn-danger" id="clearAllEmp">🗑 Xóa hết</button>
               <span class="muted" id="empCount">0 NV</span>
             </div>
+            <!-- ✅ THÊM DÒNG MỚI NÀY -->
+<div style="margin-top:6px;">
+    <button class="btn btn-sm" onclick="checkSyncStatus()" title="Kiểm tra trạng thái đồng bộ dữ liệu ẩn" style="background:#10b981;color:white;border:none;width:100%;">
+        🔄 Kiểm tra đồng bộ
+    </button>
+</div>
+<!-- ✅ THÊM CÁC NÚT QUẢN LÝ TOKEN -->
+<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">
+    <button class="btn btn-sm" onclick="setGithubToken()" 
+            title="Nhập GitHub Token mới"
+            style="flex:1;background:#3b82f6;color:white;border:none;min-width:120px;">
+        🔐 Nhập token
+    </button>
+    <button class="btn btn-sm" onclick="checkGithubTokenStatus()" 
+            title="Xem trạng thái token"
+            style="flex:1;background:#8b5cf6;color:white;border:none;min-width:120px;">
+        📊 Trạng thái
+    </button>
+    <button class="btn btn-sm" onclick="clearGithubToken()" 
+            title="Xóa token đã lưu"
+            style="flex:1;background:#ef4444;color:white;border:none;min-width:120px;">
+        🗑 Xóa token
+    </button>
+</div>
             <div class="list" id="empList" style="margin-top:6px"></div>
           </div>
           <div class="panel">
@@ -1554,7 +1578,13 @@
 <script>
   // ==================== GOOGLE SHEETS CONFIG ====================
 var GOOGLE_SHEETS_API = 'https://script.google.com/macros/s/AKfycbway2n_xK91Ef40-eu5qkTiStil48aR9LjSx_L8J_CGOhK_d1duj7EHsqKFoRuS7pvJ6A/exec'; // ← THAY URL CỦA BẠN
-var USE_GOOGLE_SHEETS = true; // true = dùng Google Sheets, false = dùng localStorage
+var USE_GOOGLE_SHEETS = false; // true = dùng Google Sheets, false = dùng localStorage
+// ==================== GITHUB CONFIG ====================
+var GITHUB_TOKEN = ''; // ✅ Token sẽ được nhập qua giao diện, không lưu trong code
+var GITHUB_REPO_OWNER = 'qlccnoibo'; // ← THAY BẰNG USERNAME CỦA BẠN
+var GITHUB_REPO_NAME = 'cc'; // ← THAY BẰNG TÊN REPO
+var GITHUB_FILE_PATH = 'hidden_emps.json'; // Tên file trên GitHub
+var USE_GITHUB_SYNC = true; // Bật/tắt đồng bộ GitHub
 
 // Hàm đọc dữ liệu từ Google Sheets
 async function sheetsRead(sheetName) {
@@ -1838,58 +1868,191 @@ function getVisibleEmployees() {
     });
 }
 
-// ==================== ĐỒNG BỘ NHÂN VIÊN ẨN LÊN GOOGLE SHEETS ====================
-// ✅ THÊM 2 HÀM MỚI NÀY
 async function saveHiddenEmployees(hiddenEmps) {
+    // 1. Lưu vào localStorage (ngay lập tức)
     localStorage.setItem('hidden_emps', JSON.stringify(hiddenEmps));
     
-    if (USE_GOOGLE_SHEETS) {
-        try {
-            var rowsData = hiddenEmps.map(function(id) {
-                return [id];
-            });
+    // 2. Upload lên GitHub (nhanh)
+    if (USE_GITHUB_SYNC) {
+        var success = await uploadHiddenEmpsToGithub(hiddenEmps);
+        if (success) {
+            console.log('⚡ Đã đồng bộ lên GitHub!');
             
-            var url = GOOGLE_SHEETS_API + '?action=writeAll&sheet=hidden_emps';
-            var response = await fetch(url, {
-                method: 'POST',
-                body: JSON.stringify(rowsData)
-            });
-            
-            var result = await response.json();
-            console.log('✅ Đã đồng bộ danh sách ẩn: ' + hiddenEmps.length + ' nhân viên');
-        } catch(e) {
-            console.error('❌ Lỗi đồng bộ:', e);
+            // ✅ THÊM: Đợi 2 giây rồi tải lại từ GitHub
+            setTimeout(function() {
+                loadHiddenEmployeesFast().then(function(result) {
+                    console.log('✅ Đã tải lại từ GitHub:', result.length, 'nhân viên');
+                    rEmp();
+                    refreshAllAutocompletes();
+                });
+            }, 2000); // Đợi GitHub cập nhật
         }
     }
 }
-
-async function loadHiddenEmployeesFromSheets() {
-    if (!USE_GOOGLE_SHEETS) return getHiddenEmployees();
-    
-    try {
-        var url = GOOGLE_SHEETS_API + '?action=read&sheet=hidden_emps';
-        var response = await fetch(url);
-        var result = await response.json();
-        
-        if (result && result.length > 0) {
-            var hiddenEmps = result.map(function(row) {
-                if (row && row.employeeId) return row.employeeId;
-                if (Array.isArray(row)) return row[0];
-                return row;
-            }).filter(function(id) {
-                return id && id !== '' && id !== 'employeeId';
-            });
+// Tải nhanh từ GitHub trước, nếu lỗi mới dùng Sheets
+async function loadHiddenEmployeesFast() {
+    // 1. THỬ TẢI TỪ GITHUB (NHANH NHẤT)
+    if (USE_GITHUB_SYNC) {
+        try {
+            var githubUrl = 'https://raw.githubusercontent.com/' + 
+                           GITHUB_REPO_OWNER + '/' + 
+                           GITHUB_REPO_NAME + '/main/' + 
+                           GITHUB_FILE_PATH + '?t=' + Date.now();
             
-            localStorage.setItem('hidden_emps', JSON.stringify(hiddenEmps));
-            console.log('✅ Đã tải danh sách ẩn từ Sheets: ' + hiddenEmps.length + ' nhân viên');
-            return hiddenEmps;
+            var response = await fetch(githubUrl, { cache: 'no-store' });
+            
+            if (response.ok) {
+                var hiddenEmps = await response.json();
+                localStorage.setItem('hidden_emps', JSON.stringify(hiddenEmps));
+                console.log('⚡ Đã tải từ GitHub: ' + hiddenEmps.length + ' nhân viên ẩn (nhanh)');
+                return hiddenEmps;
+            }
+        } catch(e) {
+            console.log('⚠️ Không tải được từ GitHub');
         }
-    } catch(e) {
-        console.error('❌ Lỗi tải danh sách ẩn:', e);
     }
     
+    // 2. CUỐI CÙNG DÙNG LOCALSTORAGE
     return getHiddenEmployees();
 }
+
+
+// ✅✅✅ THÊM HÀM checkSyncStatus() Ở ĐÂY ✅✅✅
+window.checkSyncStatus = async function() {
+    var status = '📊 TRẠNG THÁI ĐỒNG BỘ NHÂN VIÊN ẨN:\n\n';
+    
+    // 1. Kiểm tra localStorage
+    var localHidden = getHiddenEmployees();
+    status += '💾 LocalStorage: ' + localHidden.length + ' nhân viên ẩn\n';
+    if (localHidden.length > 0) {
+        status += '   IDs: ' + localHidden.join(', ') + '\n';
+    }
+    status += '\n';
+    
+    // 2. Kiểm tra GitHub
+    if (USE_GITHUB_SYNC) {
+        try {
+            var githubUrl = 'https://raw.githubusercontent.com/' + 
+                           GITHUB_REPO_OWNER + '/' + 
+                           GITHUB_REPO_NAME + '/main/' + 
+                           GITHUB_FILE_PATH + '?t=' + Date.now();
+            
+            var response = await fetch(githubUrl);
+            if (response.ok) {
+                var githubData = await response.json();
+                status += '⚡ GitHub: ' + githubData.length + ' nhân viên ẩn\n';
+                if (githubData.length > 0) {
+                    status += '   IDs: ' + githubData.join(', ') + '\n';
+                }
+            } else {
+                status += '⚡ GitHub: ❌ Không truy cập được (HTTP ' + response.status + ')\n';
+            }
+        } catch(e) {
+            status += '⚡ GitHub: ❌ Lỗi kết nối\n';
+        }
+    } else {
+        status += '⚡ GitHub: Đã tắt\n';
+    }
+    status += '\n';
+    
+        status += '\n\n💡 Mẹo: Dữ liệu nên giống nhau ở LocalStorage và GitHub!';
+    
+    await showAlert(status, 'Trạng thái đồng bộ');
+};
+
+// ==================== QUẢN LÝ GITHUB TOKEN ====================
+window.setGithubToken = async function() {
+    var token = await showPassword('Nhập GitHub Token mới:', '🔐 Bảo mật Token');
+    
+    if (!token) {
+        showAlert('❌ Đã hủy nhập token!', 'Thông báo');
+        return;
+    }
+    
+    // Kiểm tra token hợp lệ
+    if (!token.startsWith('ghp_') && !token.startsWith('github_pat_')) {
+        showAlert('❌ Token không hợp lệ!\n\nToken phải bắt đầu bằng "ghp_" hoặc "github_pat_"', 'Lỗi');
+        return;
+    }
+    
+    // Lưu token vào localStorage (chỉ trên máy Admin)
+    GITHUB_TOKEN = token;
+    localStorage.setItem('github_token', token);
+    
+    // Test token với GitHub API
+    var testResult = await testGithubToken(token);
+    
+    if (testResult.success) {
+        showAlert(
+            '✅ Token hợp lệ!\n\n' +
+            '👤 Tài khoản: ' + testResult.username + '\n' +
+            '📦 Repo: ' + GITHUB_REPO_OWNER + '/' + GITHUB_REPO_NAME + '\n\n' +
+            '🔒 Token đã được lưu an toàn trên máy của bạn.',
+            'Thành công'
+        );
+    } else {
+        showAlert(
+            '⚠️ Token đã lưu nhưng không thể xác thực!\n\n' +
+            'Lỗi: ' + testResult.error + '\n\n' +
+            '👉 Vui lòng kiểm tra lại token hoặc quyền repo.',
+            'Cảnh báo'
+        );
+    }
+};
+
+// Hàm test token với GitHub API
+async function testGithubToken(token) {
+    try {
+        var response = await fetch('https://api.github.com/user', {
+            headers: {
+                'Authorization': 'token ' + token,
+                'Accept': 'application/vnd.github.v3+json'
+            }
+        });
+        
+        if (response.ok) {
+            var userData = await response.json();
+            return { success: true, username: userData.login };
+        } else {
+            var errorData = await response.json();
+            return { success: false, error: errorData.message || 'HTTP ' + response.status };
+        }
+    } catch(e) {
+        return { success: false, error: e.message };
+    }
+};
+
+// Hàm xóa token
+window.clearGithubToken = async function() {
+    var confirmed = await showConfirm('Bạn muốn xóa GitHub Token đã lưu?', 'Xác nhận');
+    if (!confirmed) return;
+    
+    GITHUB_TOKEN = '';
+    localStorage.removeItem('github_token');
+    showAlert('✅ Đã xóa token!', 'Thành công');
+};
+
+// Hàm kiểm tra trạng thái token
+window.checkGithubTokenStatus = function() {
+    var savedToken = localStorage.getItem('github_token');
+    
+    if (savedToken && savedToken.length > 0) {
+        showAlert(
+            '🔐 Trạng thái GitHub Token:\n\n' +
+            '✅ Đã có token (dài ' + savedToken.length + ' ký tự)\n' +
+            '💾 Lưu trên máy này\n\n' +
+            '👉 Dùng nút "Xóa token" nếu muốn gỡ bỏ.',
+            'Token'
+        );
+    } else {
+        showAlert(
+            '🔐 Trạng thái GitHub Token:\n\n' +
+            '❌ Chưa có token\n\n' +
+            '👉 Bấm "Nhập token" để thêm mới.',
+            'Token'
+        );
+    }
+};
 
 // Hàm kiểm tra 1 nhân viên có bị ẩn không
 function isEmployeeHidden(empId) {
@@ -4193,13 +4356,17 @@ function init(){
         };
     }
   checkAdmin();
-  // ✅ THÊM ĐOẠN NÀY
-    if (USE_GOOGLE_SHEETS) {
-        loadHiddenEmployeesFromSheets().then(function() {
-            rEmp();
-            refreshAllAutocompletes();
-        });
-    }
+  // ✅ Tự động load GitHub Token từ localStorage
+var savedToken = localStorage.getItem('github_token');
+if (savedToken && savedToken.length > 0) {
+    GITHUB_TOKEN = savedToken;
+    console.log('🔐 Đã load GitHub Token từ máy này');
+}
+  // Tải nhanh từ GitHub trước
+loadHiddenEmployeesFast().then(function() {
+    rEmp();
+    refreshAllAutocompletes();
+});
      if (!isAdmin) {
     fetch('https://raw.githubusercontent.com/binhkca/cc/main/data.json?t=' + Date.now())
         .then(function(r) { return r.json(); })
@@ -5144,6 +5311,76 @@ currentFiltered = allRecords.filter(function(r) {
 
 renderStatsTable(currentFiltered);
 };
+// ==================== UPLOAD LÊN GITHUB ====================
+async function uploadHiddenEmpsToGithub(hiddenEmps) {
+  // ✅ THÊM KIỂM TRA TOKEN
+    if (!GITHUB_TOKEN || GITHUB_TOKEN.length === 0) {
+        console.log('⚠️ Chưa có GitHub Token! Cần Admin nhập token.');
+        showAlert(
+            '⚠️ Chưa có GitHub Token!\n\n' +
+            '👉 Vào Tab Quản lý → Nhập token để đồng bộ GitHub.',
+            'Thiếu token'
+        );
+        return false;
+    }
+    if (!USE_GITHUB_SYNC || !GITHUB_TOKEN) return false;
+    
+    try {
+        var content = JSON.stringify(hiddenEmps);
+        var base64Content = btoa(unescape(encodeURIComponent(content)));
+        
+        // 1. Lấy SHA của file hiện tại (nếu có)
+        var sha = '';
+        var getUrl = 'https://api.github.com/repos/' + GITHUB_REPO_OWNER + '/' + GITHUB_REPO_NAME + '/contents/' + GITHUB_FILE_PATH;
+        
+        var getResponse = await fetch(getUrl, {
+            headers: {
+                'Authorization': 'token ' + GITHUB_TOKEN,
+                'Accept': 'application/vnd.github.v3+json'
+            }
+        });
+        
+        if (getResponse.ok) {
+            var fileData = await getResponse.json();
+            sha = fileData.sha;
+        }
+        
+        // 2. Upload file
+        var putUrl = 'https://api.github.com/repos/' + GITHUB_REPO_OWNER + '/' + GITHUB_REPO_NAME + '/contents/' + GITHUB_FILE_PATH;
+        
+        var putData = {
+            message: 'Update hidden_emps.json - ' + new Date().toISOString(),
+            content: base64Content
+        };
+        
+        if (sha) {
+            putData.sha = sha; // Cần SHA để cập nhật file đã tồn tại
+        }
+        
+        var putResponse = await fetch(putUrl, {
+            method: 'PUT',
+            headers: {
+                'Authorization': 'token ' + GITHUB_TOKEN,
+                'Content-Type': 'application/json',
+                'Accept': 'application/vnd.github.v3+json'
+            },
+            body: JSON.stringify(putData)
+        });
+        
+        if (putResponse.ok) {
+            console.log('✅ Đã upload hidden_emps.json lên GitHub!');
+            return true;
+        } else {
+            var errorData = await putResponse.json();
+            console.error('❌ Lỗi upload GitHub:', errorData.message);
+            return false;
+        }
+        
+    } catch(e) {
+        console.error('❌ Lỗi upload GitHub:', e);
+        return false;
+    }
+}
 </script>
 </body>
 </html>
