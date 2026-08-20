@@ -2664,7 +2664,7 @@ window.subAtt = async function(e, keepTimestamp) {
   });
   
   if (duplicateNames.length > 0) {
-      await showAlert('⚠️ Những nhân viên sau đã có bản ghi TRÙNG hoàn toàn (cùng ca + cùng công đoạn):\n\n' + duplicateNames.join(', ') + '\n\nHệ thống đã bỏ qua họ.', 'Cảnh báo trùng');
+      await showAlert('⚠️ Đã có bản ghi TRÙNG hoàn toàn (cùng ca + cùng công đoạn):\n\n' + duplicateNames.join(', ') + '\n\nHệ thống đã bỏ qua họ.', 'Cảnh báo trùng');
       
       selectedEmployees = selectedEmployees.filter(function(en) {
           return duplicateNames.indexOf(cleanEmployeeName(en)) === -1;
