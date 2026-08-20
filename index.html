@@ -2646,8 +2646,34 @@ window.subAtt = async function(e, keepTimestamp) {
       await showAlert('⚠️ Vui lòng chọn ít nhất 1 công đoạn làm việc!', 'Thiếu thông tin');
       return false;
   }
-
-    rec.push({ 
+      // Kiểm tra trùng hoàn toàn: cùng ngày + cùng ca + cùng công đoạn
+  var attDateCheck = dt.split('T')[0];
+  var taskNamesCheck = (ts || []).map(function(t) { return t.task; }).sort().join(',');
+  var existingRecords = L(REC_KEY, []);
+  var duplicateNames = [];
+  
+  selectedEmployees.forEach(function(en) {
+      var duplicate = existingRecords.some(function(r) {
+          var rTaskNames = (r.tasks || []).map(function(t) { return t.task; }).sort().join(',');
+          return r.employee === en && 
+                 r.date === attDateCheck && 
+                 (r.shift || '').split('(')[0].trim() === shiftName && 
+                 rTaskNames === taskNamesCheck;
+      });
+      if (duplicate) duplicateNames.push(cleanEmployeeName(en));
+  });
+  
+  if (duplicateNames.length > 0) {
+      await showAlert('⚠️ Những nhân viên sau đã có bản ghi TRÙNG hoàn toàn (cùng ca + cùng công đoạn):\n\n' + duplicateNames.join(', ') + '\n\nHệ thống đã bỏ qua họ.', 'Cảnh báo trùng');
+      
+      selectedEmployees = selectedEmployees.filter(function(en) {
+          return duplicateNames.indexOf(cleanEmployeeName(en)) === -1;
+      });
+      
+      if (selectedEmployees.length === 0) return false;
+  }
+  
+  rec.push({
     id: 'rec_' + Date.now() + '_' + i + '_' + Math.random().toString(36).substr(2, 4), 
     employee: en, 
     date: dt.split('T')[0], 
