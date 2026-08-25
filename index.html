@@ -5184,10 +5184,14 @@ window.exportForSheets = function() {
     document.body.removeChild(a);
     showAlert('✅ Đã xuất file CSV! Vào Google Sheets → File → Import để tải lên.');
 };
-// 👉 THÊM VÀO ĐÂY
 window.uploadToGithub = function() {
-    var records = JSON.parse(localStorage.getItem('r') || '[]');
-    var jsonStr = JSON.stringify(records);
+    var fullData = {
+        employees: JSON.parse(localStorage.getItem('e') || '[]'),
+        groups: JSON.parse(localStorage.getItem('g') || '[]'),
+        records: JSON.parse(localStorage.getItem('r') || '[]')
+    };
+    
+    var jsonStr = JSON.stringify(fullData);
     
     var blob = new Blob([jsonStr], {type: 'application/json'});
     var a = document.createElement('a');
@@ -5197,7 +5201,7 @@ window.uploadToGithub = function() {
     a.click();
     document.body.removeChild(a);
     
-    showAlert('✅ File data.json đã tải về!\n\n👉 Vào GitHub → Upload file này lên.');
+    showAlert('✅ File data.json đầy đủ đã tải về!\n\n👉 Vào GitHub → Upload file này lên.');
 };
 window.syncToSheetsDirect = async function() {
     var records = JSON.parse(localStorage.getItem('r') || '[]');
