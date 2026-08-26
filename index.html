@@ -4501,10 +4501,20 @@ loadHiddenEmployeesFast().then(function() {
     fetch('https://raw.githubusercontent.com/qlccnoibo/cc/main/data.json?t=' + Date.now())
         .then(function(r) { return r.json(); })
         .then(function(data) {
-            if (data && data.length > 0) {
-                localStorage.setItem('r', JSON.stringify(data));
+            if (data) {
+                if (data.employees) {
+                    localStorage.setItem('e', JSON.stringify(data.employees));
+                }
+                if (data.groups) {
+                    localStorage.setItem('g', JSON.stringify(data.groups));
+                }
+                if (data.records) {
+                    localStorage.setItem('r', JSON.stringify(data.records));
+                }
+                
                 refreshAllUI();
-                console.log('✅ Đã tải ' + data.length + ' bản ghi');
+                rEmp();
+                console.log('✅ Đã tải dữ liệu từ GitHub');
             }
         })
         .catch(function(e) {
