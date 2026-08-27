@@ -2341,10 +2341,12 @@ function renderCurrentOverviewPage(container) {
       'ondrop="onRowDrop(event)" ' +
       'data-gidx="' + dataIndex + '">' +
       '<td>' +
-          '<input type="number" class="stt-input" value="' + (globalIdx + 1) + '" ' +
+    (isAdmin 
+        ? '<input type="number" class="stt-input" value="' + (globalIdx + 1) + '" ' +
           'data-gidx="' + dataIndex + '" ' +
           'onchange="moveRowToPosition(this)" ' +
-          'style="width:30px; padding:4px; border:1px solid #d1d5db; border-radius:6px; text-align:center;" />' +
+          'style="width:50px; padding:4px; border:1px solid #d1d5db; border-radius:6px; text-align:center;" />'
+        : '<span>' + (globalIdx + 1) + '</span>') +
       '</td>' +
       '<td class="date-compact">' + formatDate(group.date) + '</td>' +
       '<td><div class="employee-group">' + employeeTags + '</div></td>' +
