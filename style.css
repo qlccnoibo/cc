@@ -2040,3 +2040,15 @@ tr.dragging {
     opacity: 0.4;
     background: #e0f2fe;
 }
+
+.stt-input {
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+/* Ẩn mũi tên tăng/giảm ở ô STT */
+.stt-input::-webkit-outer-spin-button,
+.stt-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}

@@ -2340,7 +2340,12 @@ function renderCurrentOverviewPage(container) {
       'ondragover="onRowDragOver(event)" ' +
       'ondrop="onRowDrop(event)" ' +
       'data-gidx="' + dataIndex + '">' +
-      '<td>' + (globalIdx + 1) + '</td>' +
+      '<td>' +
+          '<input type="number" class="stt-input" value="' + (globalIdx + 1) + '" ' +
+          'data-gidx="' + dataIndex + '" ' +
+          'onchange="moveRowToPosition(this)" ' +
+          'style="width:30px; padding:4px; border:1px solid #d1d5db; border-radius:6px; text-align:center;" />' +
+      '</td>' +
       '<td class="date-compact">' + formatDate(group.date) + '</td>' +
       '<td><div class="employee-group">' + employeeTags + '</div></td>' +
       '<td><span class="shift-badge ' + getShiftColorClass(shiftName) + '">' + escHtml(shiftName) + '</span></td>' +
@@ -4284,4 +4289,38 @@ window.onRowDrop = function(e) {
     S(REC_KEY, allRecords);
     window._statsData = allRecords;
     renderStatsTable(allRecords);
+};
+
+// Nhập số vào ô STT → Bản ghi tự nhảy đến đúng vị trí đó! 
+window.moveRowToPosition = function(input) {
+    var newPos = parseInt(input.value);
+    var gidx = input.dataset.gidx;
+    
+    if (!gidx || isNaN(newPos) || newPos < 1) {
+        var container = document.getElementById('statsTableContainer');
+        if (container) renderCurrentOverviewPage(container);
+        return;
+    }
+    
+    var groups = PaginationManager.overview.data;
+    if (!groups || groups.length === 0) return;
+    
+    var fromIdx = -1;
+    for (var i = 0; i < groups.length; i++) {
+        if (groups[i].key === _tableGroupMap[gidx]) {
+            fromIdx = i;
+            break;
+        }
+    }
+    
+    if (fromIdx === -1) return;
+    
+    if (newPos > groups.length) newPos = groups.length;
+    
+    var item = groups.splice(fromIdx, 1)[0];
+    groups.splice(newPos - 1, 0, item);
+    
+    PaginationManager.overview.data = groups;
+    var container = document.getElementById('statsTableContainer');
+    if (container) renderCurrentOverviewPage(container);
 };
