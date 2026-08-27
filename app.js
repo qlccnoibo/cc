@@ -3592,13 +3592,20 @@ function loadPersonalRecords() {
       }).map(function(r) { return cleanEmployeeName(r.employee); });
       var uniqueColleagues = Array.from(new Set(colleagues));
       var tasksStr = recItem.tasks.map(function(t) { return t.task; }).join(', ');
-      var colleaguesStr = uniqueColleagues.length > 0 ? uniqueColleagues.join(', ') : '<span class="muted">Một mình</span>';
+      var colleaguesHtml = '';
+        if (uniqueColleagues.length > 0) {
+            uniqueColleagues.forEach(function(c) {
+                colleaguesHtml += '<span class="colleague-tag">' + escHtml(cleanEmployeeName(c)) + '</span> ';
+            });
+        } else {
+            colleaguesHtml = '<span class="muted">Một mình</span>';
+        }
       var noteStr = recItem.note || '-',
         noteDisplay = noteStr.length > 25 ? noteStr.substring(0, 25) + '...' : noteStr;
       var eatBadge = recItem.eat === 'Có' ? 'yes' : 'no',
         shiftName = recItem.shift ? recItem.shift.split('(')[0].trim() : '-';
       var escapedNote = noteStr.replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, ' ');
-      html += '<tr><td class="date-compact">' + formatDate(recItem.date) + '</td><td><span class="shift-badge">' + shiftName + '</span></td><td class="task-list-compact">' + tasksStr + '</td><td>' + colleaguesStr + '</td><td><span class="eat-badge ' + eatBadge + '">' + (recItem.eat || '-') + '</span></td><td class="note-cell-personal" onclick="showNotePopup(event, \'' + escapedNote + '\')" onmouseenter="showNotePopup(event, \'' + escapedNote + '\')" onmouseleave="hideNotePopup()">' + noteDisplay + '</td></tr>';
+      html += '<tr><td class="date-compact">' + formatDate(recItem.date) + '</td><td><span class="shift-badge">' + shiftName + '</span></td><td class="task-list-compact">' + tasksStr + '</td><td>' + colleaguesHtml + '</td><td><span class="eat-badge ' + eatBadge + '">' + (recItem.eat || '-') + '</span></td><td class="note-cell-personal" onclick="showNotePopup(event, \'' + escapedNote + '\')" onmouseenter="showNotePopup(event, \'' + escapedNote + '\')" onmouseleave="hideNotePopup()">' + noteDisplay + '</td></tr>';
     });
     html += '</table></div></div>';
     recordsEl.innerHTML = html;

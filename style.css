@@ -2052,3 +2052,50 @@ tr.dragging {
     -webkit-appearance: none;
     margin: 0;
 }
+
+#personalRecords,
+#personalSummary {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+#personalRecords table,
+#personalSummary table {
+    width: 100%;
+    min-width: 600px;
+    table-layout: auto;
+}
+
+.colleague-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+}
+
+.colleague-tag {
+    display: inline-block;
+    padding: 2px 7px;
+    background: #DCFCE7;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    font-size: 11px;
+    font-family: 'Segoe UI', 'Roboto', Arial, sans-serif !important;
+    font-weight: 700 !important;
+    color: #041beb;
+    white-space: nowrap;
+}
+
+.colleague-tag {
+    font-family: 'Segoe UI', 'Roboto', Arial, sans-serif !important;
+    font-weight: 700 !important;
+}
+
+.colleague-list,
+td:has(.colleague-tag) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    max-width: 200px;
+}
