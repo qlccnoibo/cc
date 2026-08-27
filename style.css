@@ -2089,7 +2089,7 @@ tr.dragging {
 
 .colleague-tag {
     font-family: 'Segoe UI', 'Roboto', Arial, sans-serif !important;
-    font-weight: 700 !important;
+    font-weight: 700;
 }
 
 .colleague-list,
