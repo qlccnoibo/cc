@@ -4333,3 +4333,208 @@ window.moveRowToPosition = function(input) {
     var container = document.getElementById('statsTableContainer');
     if (container) renderCurrentOverviewPage(container);
 };
+
+// ==================== LƯU MẪU CHẤM CÔNG ====================
+
+// Lưu mẫu chấm công theo ngày
+window.saveAttendanceTemplate = function() {
+    if (selectedEmployees.length === 0) {
+        showAlert('⚠️ Chưa chọn nhân viên để lưu mẫu!');
+        return;
+    }
+    
+    var attDate = document.getElementById('attDate')?.value || '';
+    
+    // Lấy ca đang chọn
+    var activeShiftIdx = 0;
+    var shiftBtns = document.querySelectorAll('.shift-btn');
+    shiftBtns.forEach(function(btn, i) {
+        if (btn.classList.contains('active')) activeShiftIdx = i;
+    });
+    
+    // Lấy công đoạn đã chọn
+    var selectedTasks = [];
+    document.querySelectorAll('.group-compact-task.checked').forEach(function(taskDiv) {
+        var cb = taskDiv.querySelector('input[type="checkbox"]');
+        if (cb && cb.dataset.task) {
+            groups.forEach(function(g) {
+                g.items.forEach(function(it) {
+                    if (it.id === cb.dataset.task) {
+                        selectedTasks.push({ group: g.title, task: it.name });
+                    }
+                });
+            });
+        }
+    });
+    
+    var template = {
+        date: attDate,
+        employees: selectedEmployees.slice(),
+        shiftIndex: activeShiftIdx,
+        tasks: selectedTasks,
+        eat: document.querySelector('input[name="eat"]:checked')?.value || 'Có',
+        note: document.getElementById('attNote')?.value || '',
+        savedAt: Date.now()
+    };
+    
+    var templates = JSON.parse(localStorage.getItem('attendance_templates') || '[]');
+    
+    // Cập nhật nếu đã có mẫu ngày này
+    var existed = false;
+    templates = templates.map(function(t) {
+        if (t.date === attDate) {
+            existed = true;
+            return template;
+        }
+        return t;
+    });
+    
+    if (!existed) templates.push(template);
+    
+    localStorage.setItem('attendance_templates', JSON.stringify(templates));
+    showAlert('✅ Đã lưu mẫu ngày ' + formatDate(attDate) + ' với ' + selectedEmployees.length + ' NV!');
+};
+
+// Áp dụng mẫu chấm công
+window.loadAttendanceTemplate = async function() {
+    var templates = JSON.parse(localStorage.getItem('attendance_templates') || '[]');
+    
+    if (templates.length === 0) {
+        showAlert('⚠️ Chưa có mẫu nào được lưu!');
+        return;
+    }
+    
+    // Sắp xếp mẫu mới nhất trước
+    templates.sort(function(a, b) { return b.savedAt - a.savedAt; });
+    
+    var msg = '📂 Chọn mẫu chấm công muốn áp dụng:\n\n';
+    templates.forEach(function(t, idx) {
+        msg += (idx + 1) + '. Ngày ' + formatDate(t.date) + ' - ' + t.employees.length + ' NV\n';
+    });
+    msg += '\nNhập số thứ tự (0 để hủy):';
+    
+    var choice = await showPrompt(msg, '1', 'Chọn mẫu');
+    if (!choice || choice === '0') return;
+    
+    var idx = parseInt(choice) - 1;
+    if (isNaN(idx) || idx < 0 || idx >= templates.length) {
+        showAlert('⚠️ Số không hợp lệ!');
+        return;
+    }
+    
+    var template = templates[idx];
+    
+    var confirmed = await showConfirm(
+        '📂 Áp dụng mẫu ngày ' + formatDate(template.date) + '?\n\n' +
+        '👥 Số nhân viên: ' + template.employees.length + '\n' +
+        '🕐 Ca: ' + (shifts[template.shiftIndex]?.name || 'Không rõ') + '\n\n' +
+        'Sẽ điền lại danh sách cho ngày hôm nay.',
+        'Áp dụng mẫu'
+    );
+    
+    if (!confirmed) return;
+    
+    // Áp dụng nhân viên
+    selectedEmployees = template.employees.slice();
+    renderSelectedEmployees();
+    
+    // Áp dụng ca
+    if (typeof selShift === 'function') {
+        selShift(template.shiftIndex);
+    }
+    
+    // Áp dụng công đoạn
+    document.querySelectorAll('.group-compact-task').forEach(function(taskDiv) {
+        taskDiv.classList.remove('checked');
+        var cb = taskDiv.querySelector('input[type="checkbox"]');
+        if (cb) cb.checked = false;
+    });
+    
+    if (template.tasks && template.tasks.length > 0) {
+        template.tasks.forEach(function(t) {
+            groups.forEach(function(g) {
+                g.items.forEach(function(it) {
+                    if (it.name === t.task) {
+                        var cb = document.querySelector('.task-checkbox[data-task="' + it.id + '"]');
+                        if (cb) {
+                            cb.checked = true;
+                            var taskDiv = cb.closest('.group-compact-task');
+                            if (taskDiv) taskDiv.classList.add('checked');
+                        }
+                    }
+                });
+            });
+        });
+    }
+    
+    // Áp dụng ăn cơm
+    var eatRadio = document.querySelector('input[name="eat"][value="' + template.eat + '"]');
+    if (eatRadio) eatRadio.checked = true;
+    
+    // Áp dụng ghi chú
+    var noteInput = document.getElementById('attNote');
+    if (noteInput) noteInput.value = template.note || '';
+    
+    showAlert('✅ Đã áp dụng mẫu! Kiểm tra lại và bấm Lưu.');
+};
+
+
+// HÀM COPPY NGÀY TRONG SỬA NHÓM
+window.copyGroupToAnotherDate = async function() {
+    if (_editModalData.employees.length === 0) {
+        showAlert('⚠️ Chưa có nhân viên để copy!');
+        return;
+    }
+    
+    // Nhập ngày mới
+    var newDate = await showPrompt('📅 Nhập ngày mới (YYYY-MM-DD):', 
+                                   document.getElementById('modalDate')?.value || '', 
+                                   'Copy sang ngày khác');
+    if (!newDate || !newDate.trim()) return;
+    
+    newDate = newDate.trim().split('T')[0];
+    
+    // Lấy thông tin hiện tại từ modal
+    var shift = shifts[_editModalData.shiftIndex];
+    var shiftStr = shift ? shift.name + ' (' + shift.time + ')' : '';
+    var note = document.getElementById('modalNote').value.trim();
+    var eat = document.querySelector('input[name="modalEat"]:checked')?.value || 'Có';
+    
+    // Tạo tasks
+    var taskObjects = [];
+    _editModalData.tasks.forEach(function(taskName) {
+        groups.forEach(function(g) {
+            g.items.forEach(function(it) {
+                if (it.name === taskName) {
+                    taskObjects.push({ group: g.title, task: it.name });
+                }
+            });
+        });
+    });
+    
+    var allRecords = L(REC_KEY, []);
+    var now = new Date().toISOString();
+    
+    // Tạo bản ghi mới cho ngày khác
+    _editModalData.employees.forEach(function(empName, i) {
+        allRecords.push({
+            id: 'rec_' + Date.now() + '_' + i + '_' + Math.random().toString(36).substr(2, 4),
+            employee: empName,
+            date: newDate,
+            shift: shiftStr,
+            eat: eat,
+            tasks: taskObjects,
+            note: note,
+            timestamp: now,
+            lastModified: Date.now()
+        });
+    });
+    
+    S(REC_KEY, allRecords);
+    log('Copy bản ghi sang ngày ' + formatDate(newDate));
+    closeEditModal();
+    window._statsData = allRecords;
+    applyStatsFilters();
+    
+    showAlert('✅ Đã copy ' + _editModalData.employees.length + ' NV sang ngày ' + formatDate(newDate));
+};
