@@ -2089,7 +2089,7 @@ tr.dragging {
 
 .colleague-tag {
     font-family: 'Segoe UI', 'Roboto', Arial, sans-serif !important;
-    font-weight: 700;
+    font-weight: 700 !important;
 }
 
 .colleague-list,
@@ -2098,4 +2098,20 @@ td:has(.colleague-tag) {
     flex-wrap: wrap;
     gap: 4px;
     max-width: 200px;
+}
+
+/* giới hạn chiều rộng và xuống dòng tự động mục ghi chú chi tiết chấm công */
+.note-cell-personal {
+    max-width: 180px !important;
+    white-space: normal !important;
+    word-break: break-word;
+    line-height: 1.4;
+    cursor: pointer;
+}
+
+.note-cell {
+    max-width: 180px !important;
+    white-space: normal !important;
+    word-break: break-word;
+    line-height: 1.4;
 }
