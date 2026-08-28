@@ -2064,7 +2064,7 @@ tr.dragging {
 /* Làm bảng thống kê công đoạn gọn như phân bố ca */
 #personalSummary table,
 #personalRecords table {
-    width: 100% !important;
+    width: 101% !important;
     min-width: 0 !important;
     table-layout: fixed;
     word-wrap: break-word;
