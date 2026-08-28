@@ -2061,18 +2061,24 @@ tr.dragging {
     -webkit-overflow-scrolling: touch;
 }
 
-#personalRecords table,
-#personalSummary table {
+/* Làm bảng thống kê công đoạn gọn như phân bố ca */
+#personalSummary table,
+#personalRecords table {
     width: 100% !important;
     min-width: 0 !important;
+    table-layout: fixed;
+    word-wrap: break-word;
 }
 
-#personalRecords td,
-#personalRecords th,
 #personalSummary td,
-#personalSummary th {
-    white-space: normal;
-    word-break: break-word;
+#personalSummary th,
+#personalRecords td,
+#personalRecords th {
+    white-space: nowrap;
+    padding: 8px 6px;
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .colleague-list {
