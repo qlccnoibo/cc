@@ -2137,3 +2137,11 @@ td:has(.colleague-tag) {
 .shift-badge.hc { background:#ede9fe; color:#5b21b6; }
 .shift-badge.half { background:#fce7f3; color:#9d174d; }
 .shift-badge.off { background:#310f02; color:#374151; }
+
+/* Bỏ nút tam giác nhỏ ở phần ghi chú (Chi tiết chấm công - Thống kê) */
+.note-cell {
+    cursor: default;
+}
+.note-cell::after {
+    content: none !important;
+}
