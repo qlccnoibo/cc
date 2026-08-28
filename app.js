@@ -1,3 +1,18 @@
+// ==================== FIREBASE ====================
+const firebaseConfig = {
+    apiKey: "AIzaSyA-RzwylrKPW9Am_32t8CUkbgrzUtuIRtY",
+    authDomain: "chamcong.firebaseapp.com",
+    databaseURL: "https://chamcong-bb941-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "chamcong",
+    storageBucket: "chamcong.appspot.com",
+    messagingSenderId: "123456789",
+    appId: "1:123456789:web:abc123"
+};
+
+firebase.initializeApp(firebaseConfig);
+var db = firebase.database();
+// ==================== HẾT FIREBASE ====================
+
 // ==================== GOOGLE SHEETS CONFIG ====================
 var GOOGLE_SHEETS_API = 'https://script.google.com/macros/s/AKfycbway2n_xK91Ef40-eu5qkTiStil48aR9LjSx_L8J_CGOhK_d1duj7EHsqKFoRuS7pvJ6A/exec';
 var USE_GOOGLE_SHEETS = false;
@@ -683,11 +698,8 @@ function renderSelectedEmployees() {
     
     var html = '';
     selectedEmployees.forEach(function(empName, idx) {
-        html += '<div class="selected-employee-item" draggable="true" ' +
-                'data-index="' + idx + '" ' +
-                'ondragstart="onDragStart(event)" ' +
-                'ondragover="onDragOver(event)" ' +
-                'ondrop="onDrop(event)" ' +
+        html += '<div class="selected-employee-item" ' +
+        'data-index="' + idx + '" ' +
                 'style="display:flex; align-items:center; gap:6px; padding:6px 10px; background:#f8fafc; border-radius:8px; margin-bottom:6px; border:1px solid #e5e7eb;">';
         html += '<span style="flex:1; display:flex; align-items:center;">' + 
         '<span style="display:inline-block; width:18px; height:18px; line-height:18px; text-align:center; background:#2563eb; color:white; border-radius:50%; font-size:11px; font-weight:600; margin-right:8px; flex-shrink:0;">' + (idx + 1) + '</span>' + 
@@ -2335,17 +2347,13 @@ function renderCurrentOverviewPage(container) {
     group.employees.forEach(function(empName) {
       employeeTags += '<span class="emp-tag">' + escHtml(cleanEmployeeName(empName)) + '</span> ';
     });
-    html += '<tr draggable="true" ' +
-      'ondragstart="onRowDragStart(event)" ' +
-      'ondragover="onRowDragOver(event)" ' +
-      'ondrop="onRowDrop(event)" ' +
-      'data-gidx="' + dataIndex + '">' +
+    html += '<tr data-gidx="' + dataIndex + '">' +
       '<td>' +
     (isAdmin 
         ? '<input type="number" class="stt-input" value="' + (globalIdx + 1) + '" ' +
           'data-gidx="' + dataIndex + '" ' +
           'onchange="moveRowToPosition(this)" ' +
-          'style="width:50px; padding:4px; border:1px solid #d1d5db; border-radius:6px; text-align:center;" />'
+          'style="width:40px; padding:4px; border:1px solid #d1d5db; border-radius:6px; text-align:center;" />'
         : '<span>' + (globalIdx + 1) + '</span>') +
       '</td>' +
       '<td class="date-compact">' + formatDate(group.date) + '</td>' +
@@ -4094,6 +4102,19 @@ function init() {
     };
   }
   checkAdmin();
+  if (!isAdmin && typeof db !== 'undefined') {
+      db.ref('chamcong').on('value', function(snapshot) {
+          var data = snapshot.val();
+          if (data) {
+              if (data.employees) localStorage.setItem('e', JSON.stringify(data.employees));
+              if (data.groups) localStorage.setItem('g', JSON.stringify(data.groups));
+              if (data.records) localStorage.setItem('r', JSON.stringify(data.records));
+              refreshAllUI();
+              rEmp();
+              console.log('✅ Đã cập nhật từ Firebase');
+          }
+      });
+  }
   var savedToken = localStorage.getItem('github_token');
   if (savedToken && savedToken.length > 0) {
     GITHUB_TOKEN = savedToken;
@@ -4538,3 +4559,46 @@ window.copyGroupToAnotherDate = async function() {
     
     showAlert('✅ Đã copy ' + _editModalData.employees.length + ' NV sang ngày ' + formatDate(newDate));
 };
+
+
+// ==================== ĐỒNG BỘ FIREBASE ====================
+
+// Lưu toàn bộ dữ liệu lên Firebase
+async function saveToFirebase() {
+    try {
+        var allData = {
+            employees: JSON.parse(localStorage.getItem('e') || '[]'),
+            groups: JSON.parse(localStorage.getItem('g') || '[]'),
+            records: JSON.parse(localStorage.getItem('r') || '[]'),
+            lastUpdated: Date.now()
+        };
+        
+        await db.ref('chamcong').set(allData);
+        showAlert('✅ Đã đồng bộ lên Firebase!');
+    } catch(e) {
+        console.error('Lỗi lưu Firebase:', e);
+        showAlert('❌ Lỗi đồng bộ Firebase!');
+    }
+}
+
+// Tải dữ liệu từ Firebase
+async function loadFromFirebase() {
+    try {
+        var snapshot = await db.ref('chamcong').once('value');
+        var data = snapshot.val();
+        
+        if (data) {
+            if (data.employees) localStorage.setItem('e', JSON.stringify(data.employees));
+            if (data.groups) localStorage.setItem('g', JSON.stringify(data.groups));
+            if (data.records) localStorage.setItem('r', JSON.stringify(data.records));
+            
+            refreshAllUI();
+            showAlert('✅ Đã tải dữ liệu từ Firebase!');
+        } else {
+            showAlert('⚠️ Firebase chưa có dữ liệu!');
+        }
+    } catch(e) {
+        console.error('Lỗi tải Firebase:', e);
+        showAlert('❌ Lỗi tải Firebase!');
+    }
+}
