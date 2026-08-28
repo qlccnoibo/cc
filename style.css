@@ -2064,8 +2064,8 @@ tr.dragging {
 /* Làm bảng thống kê công đoạn gọn như phân bố ca */
 #personalSummary table,
 #personalRecords table {
-    width: 120% !important;
-    max-width: calc(100% + 5px);
+    width: auto;
+    max-width: none;
     min-width: 0 !important;
     table-layout: fixed;
     word-wrap: break-word;
@@ -2076,7 +2076,8 @@ tr.dragging {
 #personalRecords td,
 #personalRecords th {
     white-space: nowrap;
-    padding: 8px 7px;
+    padding: 14px;
+    Margin: 0px 0px 14px;
     font-size: 12px;
     overflow: hidden;
     text-overflow: ellipsis;
