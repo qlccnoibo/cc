@@ -8,7 +8,9 @@
   <!-- External Libraries -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+
   <!-- CSS -->
   <link rel="stylesheet" href="style.css">
 </head>
@@ -106,6 +108,16 @@
     <!-- Page: Quản lý -->
     <section id="pageQuanLy" class="card" style="display:none">
       <h2>⚙️ Quản lý</h2>
+        
+    <!-- 👉 THÊM 2 NÚT FIREBASE VÀO ĐÂY -->
+    <div style="margin:10px 0;">
+        <button onclick="saveToFirebase()" style="background:#f59e0b; color:white; border:none; padding:10px 16px; border-radius:8px; margin-right:6px;">
+            ☁️ Lưu lên Firebase
+        </button>
+        <button onclick="loadFromFirebase()" style="background:#3b82f6; color:white; border:none; padding:10px 16px; border-radius:8px;">
+            📥 Tải từ Firebase
+        </button>
+    </div>
       <div class="manage-layout">
         <div>
           <h3>📋 Nhóm công việc <span class="muted" id="groupCount">0 nhóm</span></h3>
