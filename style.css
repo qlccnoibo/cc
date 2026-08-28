@@ -2067,6 +2067,7 @@ tr.dragging {
     width: 100% !important;
     max-width: 100% !important;
     table-layout: fixed;
+    word-wrap: break-word;
 }
 
 #personalSummary th,
@@ -2075,6 +2076,8 @@ tr.dragging {
 #personalRecords td {
     padding: 6px 8px !important;
     font-size: 12px !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
 }
 
