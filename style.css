@@ -2063,9 +2063,20 @@ tr.dragging {
 
 #personalRecords table,
 #personalSummary table {
-    width: 100%;
-    min-width: 600px;
+    width: 100% !important;
+    min-width: 0 !important;
     table-layout: auto;
+    overflow-x: auto;
+    display: block;
+}
+
+#personalRecords td,
+#personalRecords th,
+#personalSummary td,
+#personalSummary th {
+    white-space: nowrap;
+    padding: 8px 6px;
+    font-size: 12px;
 }
 
 .colleague-list {
