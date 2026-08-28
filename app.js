@@ -3557,7 +3557,7 @@ function loadPersonalRecords() {
     } else {
       heSo = 1;
     }
-    r.tasks.forEach(function(t) {
+    (r.tasks || []).forEach(function(t) {
       taskCountMap[t.task] = (taskCountMap[t.task] || 0) + heSo;
     });
   });
@@ -3599,7 +3599,7 @@ function loadPersonalRecords() {
           });
       }).map(function(r) { return cleanEmployeeName(r.employee); });
       var uniqueColleagues = Array.from(new Set(colleagues));
-      var tasksStr = recItem.tasks.map(function(t) { return t.task; }).join(', ');
+      var tasksStr = (recItem.tasks || []).map(function(t) { return t.task; }).join(', ');
       var colleaguesHtml = '';
         if (uniqueColleagues.length > 0) {
             uniqueColleagues.forEach(function(c) {
