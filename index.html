@@ -68,8 +68,8 @@
         </div>
         <div class="controls">
           <button class="btn btn-primary" type="submit">✅ Lưu</button>
-          <button class="btn" type="button" id="clearForm">🔄 Làm mới</button>
-          <button class="btn admin-only" type="button" onclick="searchRecords()">🔍 Tìm/Sửa</button>
+          <button class="btn btn-sm" type="button" onclick="saveAttendanceTemplate()" style="background:#10b981; color:white;">💾 Lưu mẫu</button>
+          <button class="btn btn-sm" type="button" onclick="loadAttendanceTemplate()" style="background:#f59e0b; color:white;">📂 Chọn mẫu</button>
         </div>
         <!-- Missing employees section -->
         <div class="missing-emp-section open" id="missingEmpSection">
@@ -237,6 +237,7 @@
           <textarea id="modalNote" class="note-input" placeholder="Nhập ghi chú..." maxlength="500" style="width:100%;min-height:60px;"></textarea>
         </div>
         <div class="modal-actions">
+          <button class="btn" onclick="copyGroupToAnotherDate()" style="background:#39b63f; color:white;">📅 Copy ngày</button>
           <button class="btn" onclick="closeEditModal()">❌ Hủy</button>
           <button class="btn btn-danger" onclick="deleteGroupFromModal()">🗑 Xóa</button>
           <button class="btn btn-primary" onclick="saveGroupFromModal()">💾 Lưu</button>
