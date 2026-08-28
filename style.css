@@ -2076,7 +2076,7 @@ tr.dragging {
 #personalRecords td,
 #personalRecords th {
     white-space: nowrap;
-    padding: 8px 6px;
+    padding: 8px 7px;
     font-size: 12px;
     overflow: hidden;
     text-overflow: ellipsis;
