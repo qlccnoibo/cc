@@ -4686,6 +4686,42 @@ function applyDarkModeColors() {
     });
 }
 
+    function countEatDays(records) {
+    var eatDays = new Set();
+    var noEatDays = new Set();
+    
+    var halfGrouped = {};
+    
+    records.forEach(function(r) {
+        var shiftName = (r.shift || '').toLowerCase();
+        var isHalf = shiftName.includes('1/2') || shiftName.includes('bán');
+        
+        if (isHalf) {
+            var key = r.employee + '|' + r.date;
+            if (!halfGrouped[key]) halfGrouped[key] = { hasEat: false, hasNoEat: false };
+            if (r.eat === 'Có') halfGrouped[key].hasEat = true;
+            if (r.eat === 'Không') halfGrouped[key].hasNoEat = true;
+        } else {
+            var fullKey = r.employee + '|' + r.date + '|' + shiftName;
+            if (r.eat === 'Có') eatDays.add(fullKey);
+            else if (r.eat === 'Không') noEatDays.add(fullKey);
+        }
+    });
+    
+    // Xử lý nửa ca
+    for (var key in halfGrouped) {
+        if (halfGrouped[key].hasEat) {
+            // Có ít nhất 1 nửa ca ăn → chỉ tính 1 lần ăn, bỏ qua không ăn
+            eatDays.add(key);
+        } else {
+            // Không có nửa ca nào ăn → tính 1 lần không ăn
+            noEatDays.add(key);
+        }
+    }
+    
+    return { eat: eatDays.size, noEat: noEatDays.size };
+}
+// Kết thúc hàm countEatDays
 
 // ==================== SO SÁNH THÁNG ====================
 
@@ -4749,11 +4785,13 @@ var dataA = records.filter(r => {
         html += '<div class="compare-title">🍚 So sánh Ăn cơm</div>';
         html += '<table class="compare-table"><tr><th>Loại</th><th>' + monthA + '</th><th>' + monthB + '</th><th>Chênh lệch</th></tr>';
 
-        var eatA = dataA.filter(r => r.eat === 'Có').length;
-        var eatB = dataB.filter(r => r.eat === 'Có').length;
+          var resultA = countEatDays(dataA);
+          var resultB = countEatDays(dataB);
 
-        var noA = dataA.filter(r => r.eat === 'Không').length;
-        var noB = dataB.filter(r => r.eat === 'Không').length;
+          var eatA = resultA.eat;
+          var eatB = resultB.eat;
+          var noA = resultA.noEat;
+          var noB = resultB.noEat;
     
     // Có ăn
         var diffEat = eatA - eatB;
@@ -4812,6 +4850,7 @@ var dataA = records.filter(r => {
         html += '<tr><td>' + task + '</td><td>' + displayA + '</td><td>' + displayB + '</td><td class="' + diffClass + '">' + (diff > 0 ? '+' : '') + displayDiff + '</td></tr>';
     });
     html += '</table>';
+
     // 👉 THÊM NÚT LÊN ĐẦU TRANG
     html += '<div style="text-align:right; margin-top:16px;">' +
             '<button onclick="scrollToTop()" style="padding:8px 16px; background:#3b82f6; color:white; border:none; border-radius:8px; cursor:pointer;">' +
