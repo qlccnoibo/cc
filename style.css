@@ -2236,17 +2236,16 @@ td:has(.colleague-tag) {
 #personalDateInput,
 #personalMonthInput {
     width: 100% !important;
-    max-width: 100% !important;
+    max-width: calc(100% - 20px) !important;
     box-sizing: border-box;
-    padding: 8px !important;
-    border: 1px solid #d1d5db !important;
-    border-radius: 6px !important;
+    margin: 6px auto;
     display: block;
-    margin-top: 6px;
+    padding: 8px 10px !important;
+    border: 1px solid #d1d5db !important;
+    border-radius: 8px !important;
 }
-#personalDateInput,
-#personalMonthInput {
-    width: calc(100% - 16px) !important;
-    margin-left: auto;
-    margin-right: auto;
+#personalContent input[type="date"],
+#personalContent input[type="month"] {
+    width: calc(100% - 24px) !important;
+    max-width: 100% !important;
 }

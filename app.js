@@ -3357,8 +3357,10 @@ function renderPersonalTab() {
 '</div>' +
 '</div>' +
 // 👉 THÊM 2 INPUT VÀO ĐÂY
-'<input type="date" id="personalDateInput" title="Chọn ngày" style="display:none; padding:8px; border:1px solid #d1d5db; border-radius:6px;" />' +
-'<input type="month" id="personalMonthInput" title="Chọn tháng" style="display:none; padding:8px; border:1px solid #d1d5db; border-radius:6px;" />' +
+'<div style="padding: 0 10px;">' +
+'<input type="date" id="personalDateInput" title="Chọn ngày" style="display:none; width:80%; padding:8px; border:1px solid #d1d5db; border-radius:6px; box-sizing:border-box;" />' +
+'<input type="month" id="personalMonthInput" title="Chọn tháng" style="display:none; width:80%; padding:8px; border:1px solid #d1d5db; border-radius:6px; box-sizing:border-box;" />' +
+'</div>' +
 '<div style="display:flex; justify-content:center; gap:8px; margin-top:12px;">' +
 '<button class="btn btn-primary btn-sm" onclick="loadPersonalRecords()" style="min-width:80px;">🔍 Xem</button>' +
 '<button class="btn btn-sm" onclick="compareMonths()" style="background:#10b981; color:white;">📊 So sánh</button>' +
