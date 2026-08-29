@@ -2231,3 +2231,12 @@ td:has(.colleague-tag) {
         flex: 0 0 auto;
     }
 }
+
+/* Trống tràn ô chọn ngày, tháng trong tab Cá nhân */
+#personalDateInput,
+#personalMonthInput {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+    margin-top: 6px;
+}
