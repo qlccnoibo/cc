@@ -103,6 +103,16 @@
     <section id="pageCaNhan" class="card" style="display:none">
       <h2>👤 Thông tin cá nhân</h2>
       <div id="personalContent" class="personal-content-wrapper"></div>
+      <div style="margin-top:16px; background:white; border-radius:12px; padding:16px; border:1px solid #e5e7eb;">
+    <h4>📊 Bảng so sánh Ca, Ăn cơm, Công đoạn!</h4>
+    <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+        <input type="month" id="compareMonthA" style="padding:8px; border:1px solid #d1d5db; border-radius:6px;" />
+        <span style="align-self:center;">↔</span>
+        <input type="month" id="compareMonthB" style="padding:8px; border:1px solid #d1d5db; border-radius:6px;" />
+        <button onclick="compareMonths()" class="btn btn-primary btn-sm">🔍 So sánh</button>
+    </div>
+    <div id="compareResult"></div>
+</div>
     </section>
 
     <!-- Page: Quản lý -->

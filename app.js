@@ -3398,7 +3398,7 @@ function initPersonalEmpAutocomplete() {
       div.addEventListener('click', function() {
         input.value = cleanEmployeeName(e.name);
         autocomplete.style.display = 'none';
-        loadPersonalRecords();
+        //loadPersonalRecords();
       });
       autocomplete.appendChild(div);
     });
@@ -4684,3 +4684,88 @@ function applyDarkModeColors() {
         }
     });
 }
+
+
+// ==================== SO SÁNH THÁNG ====================
+
+window.compareMonths = function() {
+    document.getElementById('personalSummary').innerHTML = '';
+    document.getElementById('personalRecords').innerHTML = '';
+    var monthA = document.getElementById('compareMonthA').value;
+    var monthB = document.getElementById('compareMonthB').value;
+    var empName = document.getElementById('personalEmpInput').value.trim();
+    
+    if (!monthA || !monthB) {
+        showAlert('⚠️ Vui lòng chọn đủ 2 tháng!');
+        return;
+    }
+    
+    if (!empName) {
+        showAlert('⚠️ Vui lòng nhập tên nhân viên trước!');
+        return;
+    }
+    
+    var records = L(REC_KEY, []);
+    
+    // Lọc theo tên nhân viên + tháng
+    var dataA = records.filter(r => {
+    var employeeMatch = r.employee === empName || 
+                        r.employee.includes(empName) ||
+                        cleanEmployeeName(r.employee).includes(cleanEmployeeName(empName));
+    return employeeMatch && r.date.startsWith(monthA);
+});
+    var dataB = records.filter(r => {
+    var employeeMatch = r.employee === empName || 
+                        r.employee.includes(empName) ||
+                        cleanEmployeeName(r.employee).includes(cleanEmployeeName(empName));
+    return employeeMatch && r.date.startsWith(monthB);
+});;
+    
+    var html = '';
+    
+    // ===== 1. SO SÁNH CA =====
+    html += '<h5>🕐 So sánh Ca làm - ' + empName + '</h5>';
+    html += '<table class="stats-table-compact"><tr><th>Ca</th><th>' + monthA + '</th><th>' + monthB + '</th><th>Chênh lệch</th></tr>';
+    
+    var shiftsList = ['Ca 1', 'Ca 2', 'Ca 3', 'HC', '1/2 Ca', 'Nghỉ'];
+    shiftsList.forEach(function(sn) {
+        var countA = dataA.filter(r => (r.shift||'').includes(sn)).length;
+        var countB = dataB.filter(r => (r.shift||'').includes(sn)).length;
+        var diff = countB - countA;
+        html += '<tr><td>' + sn + '</td><td>' + countA + '</td><td>' + countB + '</td><td>' + (diff > 0 ? '+' : '') + diff + '</td></tr>';
+    });
+    html += '</table>';
+    
+    // ===== 2. SO SÁNH ĂN CƠM =====
+    html += '<h5 style="margin-top:16px;">🍚 So sánh Ăn cơm</h5>';
+    html += '<table class="stats-table-compact"><tr><th>Loại</th><th>' + monthA + '</th><th>' + monthB + '</th><th>Chênh lệch</th></tr>';
+    
+    var eatA = dataA.filter(r => r.eat === 'Có').length;
+    var eatB = dataB.filter(r => r.eat === 'Có').length;
+    var noA = dataA.length - eatA;
+    var noB = dataB.length - eatB;
+    
+    html += '<tr><td>Có ăn</td><td>' + eatA + '</td><td>' + eatB + '</td><td>' + (eatB-eatA > 0 ? '+' : '') + (eatB-eatA) + '</td></tr>';
+    html += '<tr><td>Không ăn</td><td>' + noA + '</td><td>' + noB + '</td><td>' + (noB-noA > 0 ? '+' : '') + (noB-noA) + '</td></tr>';
+    html += '</table>';
+    
+    // ===== 3. SO SÁNH CÔNG ĐOẠN =====
+    html += '<h5 style="margin-top:16px;">🔧 So sánh Công đoạn</h5>';
+    html += '<table class="stats-table-compact"><tr><th>Công đoạn</th><th>' + monthA + '</th><th>' + monthB + '</th><th>Chênh lệch</th></tr>';
+    
+    var taskMap = {};
+    dataA.forEach(r => (r.tasks||[]).forEach(t => { taskMap[t.task] = taskMap[t.task] || {a:0,b:0}; taskMap[t.task].a++; }));
+    dataB.forEach(r => (r.tasks||[]).forEach(t => { taskMap[t.task] = taskMap[t.task] || {a:0,b:0}; taskMap[t.task].b++; }));
+    
+    var sortedTasks = Object.keys(taskMap).sort((x,y) => (taskMap[y].b+taskMap[y].a) - (taskMap[x].b+taskMap[x].a));
+    
+    sortedTasks.forEach(function(task) {
+        var countA = taskMap[task].a;
+        var countB = taskMap[task].b;
+        var diff = countB - countA;
+        html += '<tr><td>' + task + '</td><td>' + countA + '</td><td>' + countB + '</td><td>' + (diff > 0 ? '+' : '') + diff + '</td></tr>';
+    });
+    html += '</table>';
+    
+    document.getElementById('compareResult').innerHTML = html;
+};
