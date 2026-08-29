@@ -1909,8 +1909,18 @@ function renderStatistics() {
   html += '<div class="filter-row" style="align-items:center;gap:10px;">';
   html += '<select id="taskDetailSelect" style="flex:2;"><option value="">-- Chọn công đoạn --</option>';
   var allTasksForSelect = new Set();
-  rec.forEach(function(r) { (r.tasks || []).forEach(function(t) { allTasksForSelect.add(t.task); }); });
-  allTasksForSelect.forEach(function(task) { html += '<option value="' + task + '">' + task + '</option>'; });
+rec.forEach(function(r) { 
+    (r.tasks||[]).forEach(function(t) { allTasksForSelect.add(t.task); }); 
+});
+
+// Sắp xếp theo bảng chữ cái
+var sortedTasks = Array.from(allTasksForSelect).sort(function(a, b) {
+    return a.localeCompare(b, 'vi');
+});
+
+sortedTasks.forEach(function(task) { 
+    html += '<option value="'+task+'">'+task+'</option>'; 
+});
   html += '</select>';
   html += '<input type="month" id="taskDetailMonth" style="max-width:140px; flex:0 0 auto;" />';
   html += '<button class="btn btn-primary btn-sm" onclick="loadTaskDetail()">🔍 Xem</button>';
@@ -2546,7 +2556,7 @@ window.loadShiftRanking = function() {
         html += '<div style="flex:1; font-weight:' + fontWeight + '; font-size:15px; color:' + nameColor + ';">' + empName + '</div>';
         html += '<div style="flex:2; background:#e5e7eb; border-radius:12px; height:10px; overflow:hidden; box-shadow:inset 0 2px 4px rgba(0,0,0,0.1);">';
         html += '<div style="background:' + barGradient + '; height:100%; width:' + percentage + '%; border-radius:12px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div></div>';
-        html += '<div style="min-width:50px; text-align:right; font-weight:600; font-size:16px; color:' + barColor + ';">' + count + ' lần</div>';
+        html += '<div style="min-width:50px; text-align:right; font-weight:600; font-size:16px; color:' + barColor + ';">' + count + ' ngày</div>';
         html += '</div>';
       });
       html += '</div>';
@@ -3329,20 +3339,68 @@ function renderPersonalTab() {
   var el = document.getElementById('personalContent');
   if (!el) return;
   el.innerHTML =
-    '<div class="card"><h3>🔍 Tra cứu & Thống kê cá nhân</h3>' +
-    '<div class="filter-row" style="margin-top:8px;">' +
-    '<div class="input-with-clear" style="flex:1;">' +
-    '<input type="text" id="personalEmpInput" placeholder="👤 Nhập tên giống tên trên kế hoạch..." autocomplete="off" />' +
-    '<button type="button" class="clear-btn" id="personalClearBtn" onclick="clearPersonalInput()" title="Xóa tên">✕</button>' +
-    '<div id="personalEmpAutocomplete" class="autocomplete-list"></div>' +
-    '</div></div>' +
-    '<div class="filter-row" style="margin-top:8px;"><select id="personalDateType" style="width:150px;" onchange="togglePersonalDateType()"><option value="all">📅 Tất cả</option><option value="date">📅 Theo ngày</option><option value="month">📅 Theo tháng</option></select>' +
-    '<input type="date" id="personalDateInput" title="Chọn ngày" style="flex:1; display:none;" /><input type="month" id="personalMonthInput" title="Chọn tháng" style="flex:1; display:none;" />' +
-    '<button class="btn btn-primary btn-sm" onclick="loadPersonalRecords()" style="min-width:80px;">🔍 Xem</button>'+
-    '<button class="btn btn-sm" onclick="compareMonths()" style="background:#10b981; color:white;">📊 So sánh</button>'
-    '<div id="personalSummary" style="margin-top:16px;"><div class="muted" style="text-align:center;padding:20px">👆 Nhập tên nhân viên và nhấn Xem để tra cứu</div></div><div id="personalRecords" style="margin-top:12px;"></div></div>';
+'<div class="card"><h3>🔍 Tra cứu & Thống kê cá nhân</h3>' +
+'<div class="filter-row" style="margin-top:8px;">' +
+'<div class="input-with-clear" style="flex:1;">' +
+'<input type="text" id="personalEmpInput" placeholder="👤 Nhập tên giống tên trên kế hoạch..." autocomplete="off" />' +
+'<button type="button" class="clear-btn" id="personalClearBtn" onclick="clearPersonalInput()" title="Xóa tên">✕</button>' +
+'<div id="personalEmpAutocomplete" class="autocomplete-list"></div>' +
+'</div></div>' +
+'<div id="personalHint" style="margin-top:8px; text-align:center; color:#64748b; font-size:13px;">👆 Nhập tên nhân viên và nhấn Xem để tra cứu</div>' +
+'<div style="display:flex; gap:4px; flex-wrap:wrap; margin-top:6px;">' +
+'<button class="btn btn-sm date-type-btn active" data-type="all" onclick="setPersonalDateType(\'all\')">📅 Tất cả</button>' +
+'<button class="btn btn-sm date-type-btn" data-type="date" onclick="setPersonalDateType(\'date\')">📅 Theo ngày</button>' +
+'<button class="btn btn-sm date-type-btn" data-type="month" onclick="setPersonalDateType(\'month\')">📅 Theo tháng</button>' +
+'<button class="btn btn-sm date-type-btn" data-type="quarter" onclick="setPersonalDateType(\'quarter\')">📅 Theo quý</button>' +
+'<button class="btn btn-sm date-type-btn" data-type="first-half" onclick="setPersonalDateType(\'first-half\')">📅 6 tháng đầu</button>' +
+'<button class="btn btn-sm date-type-btn" data-type="second-half" onclick="setPersonalDateType(\'second-half\')">📅 6 tháng cuối</button>' +
+'</div>' +
+'</div>' +
+// 👉 THÊM 2 INPUT VÀO ĐÂY
+'<input type="date" id="personalDateInput" title="Chọn ngày" style="display:none; padding:8px; border:1px solid #d1d5db; border-radius:6px;" />' +
+'<input type="month" id="personalMonthInput" title="Chọn tháng" style="display:none; padding:8px; border:1px solid #d1d5db; border-radius:6px;" />' +
+'<div style="display:flex; justify-content:center; gap:8px; margin-top:12px;">' +
+'<button class="btn btn-primary btn-sm" onclick="loadPersonalRecords()" style="min-width:80px;">🔍 Xem</button>' +
+'<button class="btn btn-sm" onclick="compareMonths()" style="background:#10b981; color:white;">📊 So sánh</button>' +
+'</div>' +
+'<div style="margin-top:16px; background:white; border-radius:12px; padding:16px; border:1px solid #e5e7eb;">' +
+'<h4>📊 Bảng so sánh Ca, Ăn cơm, Công đoạn!</h4>' +
+'<div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">' +
+'<input type="month" id="compareMonthA" style="padding:8px; border:1px solid #d1d5db; border-radius:6px;" />' +
+'<span style="align-self:center;">↔</span>' +
+'<input type="month" id="compareMonthB" style="padding:8px; border:1px solid #d1d5db; border-radius:6px;" />' +
+'<button onclick="compareMonths()" class="btn btn-primary btn-sm">🔍 So sánh</button>' +
+'</div>' +
+'<div id="compareResult"></div>' +
+'</div>' +
+'<div id="personalSummary" style="margin-top:16px;"></div>' +
+'<div id="personalRecords" style="margin-top:12px;"></div>' +
+'</div>';
+
   setTimeout(function() { initPersonalEmpAutocomplete(); }, 100);
 }
+
+window.setPersonalDateType = function(type) {
+    // Đánh dấu nút active
+    document.querySelectorAll('.date-type-btn').forEach(function(btn) {
+        btn.classList.remove('active');
+    });
+    var activeBtn = document.querySelector('.date-type-btn[data-type="' + type + '"]');
+    if (activeBtn) activeBtn.classList.add('active');
+    
+    // Lưu loại đã chọn
+    localStorage.setItem('personal_date_type', type);
+    
+    // Ẩn/hiện input ngày tháng
+    var dateInput = document.getElementById('personalDateInput');
+    var monthInput = document.getElementById('personalMonthInput');
+    
+    if (dateInput) dateInput.style.display = type === 'date' ? 'block' : 'none';
+    if (monthInput) monthInput.style.display = type === 'month' ? 'block' : 'none';
+    
+    // Tự động tải dữ liệu
+    loadPersonalRecords();
+};
 
 window.togglePersonalDateType = function() {
   var type = document.getElementById('personalDateType')?.value;
@@ -3434,30 +3492,66 @@ function initPersonalEmpAutocomplete() {
 }
 
 window.clearPersonalInput = function() {
-  var input = document.getElementById('personalEmpInput');
-  if (input) {
-    input.value = '';
-    input.focus();
+    // Xóa tên
+    var input = document.getElementById('personalEmpInput');
+    if (input) {
+        input.value = '';
+        input.focus();
+    }
+    
+    // Ẩn nút clear
     var clearBtn = document.getElementById('personalClearBtn');
     if (clearBtn) clearBtn.classList.remove('show');
+    
+    // Reset bảng chi tiết
     var summaryEl = document.getElementById('personalSummary');
     var recordsEl = document.getElementById('personalRecords');
-    if (summaryEl) summaryEl.innerHTML = '<div class="muted" style="text-align:center;padding:20px">👆 Nhập tên nhân viên và nhấn Xem để tra cứu</div>';
+    if (summaryEl) summaryEl.innerHTML = '';
     if (recordsEl) recordsEl.innerHTML = '';
-  }
+    
+    // Reset hint
+    var hintEl = document.getElementById('personalHint');
+    //if (hintEl) hintEl.innerHTML = '👆 Nhập tên nhân viên và nhấn Xem để tra cứu';
+    
+    // Reset bảng so sánh
+    var compareResult = document.getElementById('compareResult');
+    if (compareResult) compareResult.innerHTML = '';
+    
+    // Reset nút lọc về "Tất cả"
+    document.querySelectorAll('.date-type-btn').forEach(function(btn) {
+        btn.classList.remove('active');
+    });
+    var allBtn = document.querySelector('.date-type-btn[data-type="all"]');
+    if (allBtn) allBtn.classList.add('active');
+    localStorage.setItem('personal_date_type', 'all');
+    
+    // Ẩn input ngày/tháng
+    var dateInput = document.getElementById('personalDateInput');
+    var monthInput = document.getElementById('personalMonthInput');
+    if (dateInput) dateInput.style.display = 'none';
+    if (monthInput) monthInput.style.display = 'none';
+    
+    // Reset tháng so sánh
+    var compareA = document.getElementById('compareMonthA');
+    var compareB = document.getElementById('compareMonthB');
+    if (compareA) compareA.value = '';
+    if (compareB) compareB.value = '';
 };
 
 function loadPersonalRecords() {
+  // Ẩn bảng so sánh
+var compareBlock = document.getElementById('compareResult');
+if (compareBlock) compareBlock.innerHTML = '';
   var empInput = document.getElementById('personalEmpInput'),
     empName = empInput ? empInput.value.trim() : '';
-  var dateType = document.getElementById('personalDateType')?.value || 'all',
+  var dateType = localStorage.getItem('personal_date_type') || 'all',
     dateVal = document.getElementById('personalDateInput')?.value || '',
     monthVal = document.getElementById('personalMonthInput')?.value || '';
   var summaryEl = document.getElementById('personalSummary'),
     recordsEl = document.getElementById('personalRecords');
   if (!summaryEl || !recordsEl) return;
   if (!empName) {
-    summaryEl.innerHTML = '<div class="muted" style="text-align:center;padding:20px">👆 Nhập tên nhân viên và nhấn Xem để tra cứu</div>';
+    //summaryEl.innerHTML = '<div class="muted" style="text-align:center;padding:20px">👆 Nhập tên nhân viên và nhấn Xem để tra cứu</div>';
     recordsEl.innerHTML = '';
     return;
   }
@@ -3472,12 +3566,35 @@ function loadPersonalRecords() {
     recordsEl.innerHTML = '';
     return;
   }
-  var rec = L(REC_KEY, []),
+    var rec = L(REC_KEY, []),
     personalRecs = rec.filter(function(r) { return r.employee === matchedEmp.name; });
+    
+  var dateType = localStorage.getItem('personal_date_type') || 'all';
+  
   if (dateType === 'date' && dateVal) {
     personalRecs = personalRecs.filter(function(r) { return r.date === dateVal; });
   } else if (dateType === 'month' && monthVal) {
     personalRecs = personalRecs.filter(function(r) { return r.date.startsWith(monthVal); });
+  } else if (dateType === 'quarter') {
+    var now = new Date();
+    var qMonth = Math.floor(now.getMonth() / 3) * 3 + 1;
+    var qStart = now.getFullYear() + '-' + String(qMonth).padStart(2, '0');
+    var qEnd = now.getFullYear() + '-' + String(qMonth + 2).padStart(2, '0');
+    personalRecs = personalRecs.filter(function(r) { 
+        return r.date >= qStart + '-01' && r.date <= qEnd + '-31'; 
+    });
+  } else if (dateType === 'first-half') {
+    var y1 = new Date().getFullYear();
+    personalRecs = personalRecs.filter(function(r) { 
+        var m = parseInt(r.date.substring(5, 7)); 
+        return r.date.startsWith(y1) && m >= 1 && m <= 6; 
+    });
+  } else if (dateType === 'second-half') {
+    var y2 = new Date().getFullYear();
+    personalRecs = personalRecs.filter(function(r) { 
+        var m = parseInt(r.date.substring(5, 7)); 
+        return r.date.startsWith(y2) && m >= 7 && m <= 12; 
+    });
   }
   personalRecs.sort(function(a, b) { return b.date.localeCompare(a.date); });
   var totalHours = personalRecs.reduce(function(sum, r) {

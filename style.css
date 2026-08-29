@@ -2211,3 +2211,10 @@ td:has(.colleague-tag) {
     align-items: center;
     gap: 6px;
 }
+
+/*  CSS cho nút active */
+.date-type-btn.active {
+    background: #2563eb;
+    color: white;
+    border-color: #2563eb;
+}
