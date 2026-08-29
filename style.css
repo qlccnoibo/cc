@@ -2155,3 +2155,9 @@ td:has(.colleague-tag) {
 #personalRecords table td {
     padding: 10px 8px !important;
 }
+
+/* Độ rộng ô ghi chú trong chi tiết chấm công - Cá nhân */
+#personalRecords td.note-cell-personal {
+    max-width: 150px !important;
+    min-width: 120px !important;
+}

@@ -2057,7 +2057,7 @@ function setFilterPeriod(period) {
     toDate = now.toISOString().split('T')[0];
   if (period === 'week') {
     var startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - now.getDay() + 1);
+    startOfWeek.setDate(now.getDate() - 6); // Lùi 6 ngày → tổng 7 ngày
     fromDate = startOfWeek.toISOString().split('T')[0];
   } else if (period === 'month') {
     fromDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
@@ -3518,7 +3518,7 @@ function loadPersonalRecords() {
   summaryHTML += '<div class="stat-card-enhanced"><span class="stat-icon">⏱️</span><div class="stat-number">' + totalHours + 'h</div><div class="stat-label">Tổng giờ công</div></div>';
   summaryHTML += '<div class="stat-card-enhanced"><span class="stat-icon">🍚</span><div class="stat-number">' + eatDays + '</div><div class="stat-label">Ngày ăn cơm (' + eatPercent + '%)</div></div>';
   summaryHTML += '<div class="stat-card-enhanced"><span class="stat-icon">💰</span><div class="stat-number" style="font-size:20px;">' + tienComFormatted + '</div><div class="stat-label">Tiền cơm (' + eatDays + ' ngày × 30.000đ)</div></div>';
-  summaryHTML += '<div class="stat-card-enhanced"><span class="stat-icon">🕐</span><div class="stat-number" style="font-size:18px;">' + topShift + '</div><div class="stat-label">Ca nhiều nhất (' + topShiftHours + ' giờ)</div></div>';
+  
   summaryHTML += '</div>';
   if (Object.keys(caHours).length > 0 || Object.keys(caDays).length > 0) {
     summaryHTML += '<div style="margin-top:12px"><b>📊 Phân bố ca làm việc:</b>';
@@ -3529,9 +3529,11 @@ function loadPersonalRecords() {
       var ca = sortedCas[i];
       var percent = totalHours > 0 ? Math.round((caHours[ca] / totalHours) * 100) : 0;
       var barWidth = Math.max(percent, 5);
+      var caColors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#ef4444'];
+      var caColor = caColors[i % caColors.length]
       var cong = Math.round((caHours[ca] / 8) * 100) / 100;
       var congDisplay = cong % 1 === 0 ? cong.toFixed(0) : cong.toFixed(2);
-      summaryHTML += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f3f4f6;"><span style="min-width:60px;font-size:13px;font-weight:500;">' + ca + '</span><div style="flex:1;background:#f1f5f9;border-radius:10px;height:16px;overflow:hidden;"><div style="background:linear-gradient(90deg, #2563eb, #60a5fa);height:100%;width:' + barWidth + '%;border-radius:10px;"></div></div><span style="font-weight:600;font-size:13px;min-width:80px;">' + congDisplay + ' công (' + percent + '%)</span></div>';
+      summaryHTML += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #ebcfc6ff;"><span style="min-width:60px;font-size:13px;font-weight:500;">' + ca + '</span><div style="flex:1;background:#f1f5f9;border-radius:10px;height:16px;overflow:hidden;"><div style="background:linear-gradient(90deg, ' + caColor + ', ' + caColor + 'cc);height:100%;width:' + barWidth + '%;border-radius:10px;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;"><span style="color:white;font-size:11px;font-weight:700;">' + caHours[ca] + ' giờ</span></div></div><span style="font-weight:600;font-size:13px;min-width:120px;">' + congDisplay + ' công (' + percent + '%)</span></div>';
     }
     var sortedDays = Object.keys(caDays).sort(function(a, b) {
       return caDays[b] - caDays[a];
@@ -4601,4 +4603,84 @@ async function loadFromFirebase() {
         console.error('Lỗi tải Firebase:', e);
         showAlert('❌ Lỗi tải Firebase!');
     }
+}
+
+function toggleDarkMode() {
+    var isDark = document.body.classList.toggle('dark-mode');
+    localStorage.setItem('dark_mode', isDark ? '1' : '0');
+    
+    var btn = document.querySelector('button[onclick="toggleDarkMode()"]');
+    if (btn) {
+        btn.textContent = isDark ? '☀️ Light' : '🌙 Dark';
+    }
+    
+    if (isDark) {
+        applyDarkModeColors();
+    } else {
+        removeDarkModeColors();
+    }
+}
+
+function removeDarkModeColors() {
+    // Reload nhẹ nhàng: xóa style đã ép, trả về giao diện gốc
+    document.body.style.background = '';
+    document.body.style.color = '';
+    
+    var allElements = document.querySelectorAll('*');
+    allElements.forEach(function(el) {
+        el.style.background = '';
+        el.style.color = '';
+        el.style.borderColor = '';
+    });
+}
+
+function applyDarkModeColors() {
+    // Ép tất cả nền tối
+    document.body.style.background = '#0f172a';
+    document.body.style.color = '#e2e8f0';
+    
+    // Ép TẤT CẢ các phần tử
+    var allElements = document.querySelectorAll('*');
+    
+    allElements.forEach(function(el) {
+        var tag = el.tagName.toLowerCase();
+        
+        // Bỏ qua các phần tử cần giữ màu (badge, button màu)
+        if (el.classList.contains('btn-primary')) {
+            el.style.background = '#2563eb';
+            el.style.color = '#fff';
+            return;
+        }
+        if (el.classList.contains('btn-danger')) {
+            el.style.background = '#dc2626';
+            el.style.color = '#fff';
+            return;
+        }
+        if (el.classList.contains('eat-badge-yes') || el.classList.contains('eat-badge')) {
+            return; // Giữ nguyên màu badge ăn
+        }
+        if (el.classList.contains('shift-badge')) {
+            return; // Giữ nguyên màu ca
+        }
+        
+        // Nền cho các container
+        if (['div', 'section', 'header', 'nav', 'table', 'tr', 'form', 'aside'].indexOf(tag) > -1) {
+            el.style.background = '#1e293b';
+            el.style.borderColor = '#334155';
+        }
+        
+        // Màu chữ cho text
+        if (['h1', 'h2', 'h3', 'h4', 'h5', 'p', 'span', 'label', 'th', 'td', 'a', 'b', 'strong'].indexOf(tag) > -1) {
+            if (el.children.length === 0) {
+                el.style.color = '#e2e8f0';
+            }
+        }
+        
+        // Input
+        if (['input', 'select', 'textarea'].indexOf(tag) > -1) {
+            el.style.background = '#334155';
+            el.style.color = '#f8fafc';
+            el.style.borderColor = '#475569';
+        }
+    });
 }
