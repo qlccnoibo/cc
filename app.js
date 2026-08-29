@@ -3347,7 +3347,7 @@ function renderPersonalTab() {
 '<div id="personalEmpAutocomplete" class="autocomplete-list"></div>' +
 '</div></div>' +
 '<div id="personalHint" style="margin-top:8px; text-align:center; color:#64748b; font-size:13px;">👆 Nhập tên nhân viên và nhấn Xem để tra cứu</div>' +
-'<div style="display:flex; gap:4px; flex-wrap:wrap; margin-top:6px;">' +
+'<div style="display:flex; gap:4px; flex-wrap:wrap; margin-top:6px; justify-content:center;">' +
 '<button class="btn btn-sm date-type-btn active" data-type="all" onclick="setPersonalDateType(\'all\')">📅 Tất cả</button>' +
 '<button class="btn btn-sm date-type-btn" data-type="date" onclick="setPersonalDateType(\'date\')">📅 Theo ngày</button>' +
 '<button class="btn btn-sm date-type-btn" data-type="month" onclick="setPersonalDateType(\'month\')">📅 Theo tháng</button>' +
