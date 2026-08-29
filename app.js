@@ -3338,7 +3338,8 @@ function renderPersonalTab() {
     '</div></div>' +
     '<div class="filter-row" style="margin-top:8px;"><select id="personalDateType" style="width:150px;" onchange="togglePersonalDateType()"><option value="all">📅 Tất cả</option><option value="date">📅 Theo ngày</option><option value="month">📅 Theo tháng</option></select>' +
     '<input type="date" id="personalDateInput" title="Chọn ngày" style="flex:1; display:none;" /><input type="month" id="personalMonthInput" title="Chọn tháng" style="flex:1; display:none;" />' +
-    '<button class="btn btn-primary btn-sm" onclick="loadPersonalRecords()" style="min-width:80px;">🔍 Xem</button></div>' +
+    '<button class="btn btn-primary btn-sm" onclick="loadPersonalRecords()" style="min-width:80px;">🔍 Xem</button>'+
+    '<button class="btn btn-sm" onclick="compareMonths()" style="background:#10b981; color:white;">📊 So sánh</button>'
     '<div id="personalSummary" style="margin-top:16px;"><div class="muted" style="text-align:center;padding:20px">👆 Nhập tên nhân viên và nhấn Xem để tra cứu</div></div><div id="personalRecords" style="margin-top:12px;"></div></div>';
   setTimeout(function() { initPersonalEmpAutocomplete(); }, 100);
 }
@@ -4689,11 +4690,19 @@ function applyDarkModeColors() {
 // ==================== SO SÁNH THÁNG ====================
 
 window.compareMonths = function() {
-    document.getElementById('personalSummary').innerHTML = '';
-    document.getElementById('personalRecords').innerHTML = '';
+    var summaryEl = document.getElementById('personalSummary');
+    var recordsEl = document.getElementById('personalRecords');
+    
+    if (summaryEl) summaryEl.innerHTML = '';
+    if (recordsEl) recordsEl.innerHTML = '';
     var monthA = document.getElementById('compareMonthA').value;
     var monthB = document.getElementById('compareMonthB').value;
     var empName = document.getElementById('personalEmpInput').value.trim();
+    var compareResult = document.getElementById('compareResult');
+if (!compareResult) {
+    showAlert('⚠️ Chưa tìm thấy vùng hiển thị so sánh!');
+    return;
+}
     
     if (!monthA || !monthB) {
         showAlert('⚠️ Vui lòng chọn đủ 2 tháng!');
@@ -4708,18 +4717,17 @@ window.compareMonths = function() {
     var records = L(REC_KEY, []);
     
     // Lọc theo tên nhân viên + tháng
-    var dataA = records.filter(r => {
-    var employeeMatch = r.employee === empName || 
-                        r.employee.includes(empName) ||
-                        cleanEmployeeName(r.employee).includes(cleanEmployeeName(empName));
-    return employeeMatch && r.date.startsWith(monthA);
+   // Lấy tên chính xác từ ô input
+var exactName = empName.trim();
+
+var dataA = records.filter(r => {
+    return cleanEmployeeName(r.employee).toLowerCase() === cleanEmployeeName(exactName).toLowerCase() && 
+           r.date.startsWith(monthA);
 });
     var dataB = records.filter(r => {
-    var employeeMatch = r.employee === empName || 
-                        r.employee.includes(empName) ||
-                        cleanEmployeeName(r.employee).includes(cleanEmployeeName(empName));
-    return employeeMatch && r.date.startsWith(monthB);
-});;
+    return cleanEmployeeName(r.employee).toLowerCase() === cleanEmployeeName(exactName).toLowerCase() && 
+           r.date.startsWith(monthB);
+});
     
     var html = '';
     
@@ -4743,11 +4751,12 @@ window.compareMonths = function() {
 
         var eatA = dataA.filter(r => r.eat === 'Có').length;
         var eatB = dataB.filter(r => r.eat === 'Có').length;
-        var noA = dataA.length - eatA;
-        var noB = dataB.length - eatB;
+
+        var noA = dataA.filter(r => r.eat === 'Không').length;
+        var noB = dataB.filter(r => r.eat === 'Không').length;
     
     // Có ăn
-        var diffEat = eatB - eatA;
+        var diffEat = eatA - eatB;
         var diffEatClass = diffEat > 0 ? 'diff-up' : (diffEat < 0 ? 'diff-down' : '');
         html += '<tr><td>Có ăn</td><td>' + eatA + '</td><td>' + eatB + '</td><td class="' + diffEatClass + '">' + (diffEat > 0 ? '+' : '') + diffEat + '</td></tr>';
         
@@ -4763,19 +4772,49 @@ window.compareMonths = function() {
     html += '<table class="compare-table"><tr><th>Công đoạn</th><th>' + monthA + '</th><th>' + monthB + '</th><th>Chênh lệch</th></tr>';
 
     var taskMap = {};
-    dataA.forEach(r => (r.tasks||[]).forEach(t => { taskMap[t.task] = taskMap[t.task] || {a:0,b:0}; taskMap[t.task].a++; }));
-    dataB.forEach(r => (r.tasks||[]).forEach(t => { taskMap[t.task] = taskMap[t.task] || {a:0,b:0}; taskMap[t.task].b++; }));
-    
+
+    function getShiftCoefficient(shift) {
+            var s = (shift || '').toLowerCase();
+            if (s.includes('1/2') || s.includes('bán')) return 0.5;
+            if (s.includes('nghỉ') || s.includes('off')) return 0;
+            return 1;
+        }
+
+        dataA.forEach(r => {
+            var heSo = getShiftCoefficient(r.shift);
+            (r.tasks||[]).forEach(t => { 
+                taskMap[t.task] = taskMap[t.task] || {a:0,b:0}; 
+                taskMap[t.task].a += heSo; 
+            });
+        });
+
+        dataB.forEach(r => {
+            var heSo = getShiftCoefficient(r.shift);
+            (r.tasks||[]).forEach(t => { 
+                taskMap[t.task] = taskMap[t.task] || {a:0,b:0}; 
+                taskMap[t.task].b += heSo; 
+            });
+        });
     var sortedTasks = Object.keys(taskMap).sort((x,y) => (taskMap[y].b+taskMap[y].a) - (taskMap[x].b+taskMap[x].a));
     
-    sortedTasks.forEach(function(task) {
+        sortedTasks.forEach(function(task) {
         var countA = taskMap[task].a;
         var countB = taskMap[task].b;
+        
+        // Hiển thị số lẻ nếu có
+        var displayA = countA % 1 === 0 ? countA.toFixed(0) : countA.toFixed(1);
+        var displayB = countB % 1 === 0 ? countB.toFixed(0) : countB.toFixed(1);
+        
         var diff = countB - countA;
+        var displayDiff = diff % 1 === 0 ? diff.toFixed(0) : diff.toFixed(1);
+        
         var diffClass = diff > 0 ? 'diff-up' : (diff < 0 ? 'diff-down' : '');
-        html += '<tr><td>' + task + '</td><td>' + countA + '</td><td>' + countB + '</td><td class="' + diffClass + '">' + (diff > 0 ? '+' : '') + diff + '</td></tr>';
+        html += '<tr><td>' + task + '</td><td>' + displayA + '</td><td>' + displayB + '</td><td class="' + diffClass + '">' + (diff > 0 ? '+' : '') + displayDiff + '</td></tr>';
     });
     html += '</table>';
     
-    document.getElementById('compareResult').innerHTML = html;
+    var compareResult = document.getElementById('compareResult');
+if (compareResult) {
+    compareResult.innerHTML = html;
+}
 };
