@@ -4812,9 +4812,17 @@ var dataA = records.filter(r => {
         html += '<tr><td>' + task + '</td><td>' + displayA + '</td><td>' + displayB + '</td><td class="' + diffClass + '">' + (diff > 0 ? '+' : '') + displayDiff + '</td></tr>';
     });
     html += '</table>';
-    
+    // 👉 THÊM NÚT LÊN ĐẦU TRANG
+    html += '<div style="text-align:right; margin-top:16px;">' +
+            '<button onclick="scrollToTop()" style="padding:8px 16px; background:#3b82f6; color:white; border:none; border-radius:8px; cursor:pointer;">' +
+            '⬆ Lên đầu trang</button>' +
+            '</div>';
     var compareResult = document.getElementById('compareResult');
 if (compareResult) {
     compareResult.innerHTML = html;
 }
+};
+
+window.scrollToTop = function() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 };
