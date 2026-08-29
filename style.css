@@ -2218,3 +2218,16 @@ td:has(.colleague-tag) {
     color: white;
     border-color: #2563eb;
 }
+
+/* Căn giữa cho các nút chọn ngày tháng trong tab Cá nhân */
+@media (max-width: 480px) {
+    #personalContent div[style*="gap:4px"] {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        justify-content: center !important;
+    }
+    
+    #personalContent .date-type-btn {
+        flex: 0 0 auto;
+    }
+}

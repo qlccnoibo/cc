@@ -4911,7 +4911,7 @@ var dataA = records.filter(r => {
           var noB = resultB.noEat;
     
     // Có ăn
-        var diffEat = eatA - eatB;
+        var diffEat = eatB - eatA;
         var diffEatClass = diffEat > 0 ? 'diff-up' : (diffEat < 0 ? 'diff-down' : '');
         html += '<tr><td>Có ăn</td><td>' + eatA + '</td><td>' + eatB + '</td><td class="' + diffEatClass + '">' + (diffEat > 0 ? '+' : '') + diffEat + '</td></tr>';
         
