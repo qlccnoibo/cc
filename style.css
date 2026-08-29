@@ -2144,3 +2144,14 @@ td:has(.colleague-tag) {
 .note-cell::after {
     content: none !important;
 }
+
+/* Độ rộng dòng trong 📋 Thống kê công đoạn đã làm */
+#personalSummary table tr,
+#personalRecords table tr {
+    height: 35px !important;
+}
+
+#personalSummary table td,
+#personalRecords table td {
+    padding: 10px 8px !important;
+}
