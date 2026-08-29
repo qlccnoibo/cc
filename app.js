@@ -4724,35 +4724,44 @@ window.compareMonths = function() {
     var html = '';
     
     // ===== 1. SO SÁNH CA =====
-    html += '<h5>🕐 So sánh Ca làm - ' + empName + '</h5>';
-    html += '<table class="stats-table-compact"><tr><th>Ca</th><th>' + monthA + '</th><th>' + monthB + '</th><th>Chênh lệch</th></tr>';
-    
+    html += '<div class="compare-title">🕐 So sánh Ca làm</div>';
+    html += '<table class="compare-table"><tr><th>Ca</th><th>' + monthA + '</th><th>' + monthB + '</th><th>Chênh lệch</th></tr>';
+
     var shiftsList = ['Ca 1', 'Ca 2', 'Ca 3', 'HC', '1/2 Ca', 'Nghỉ'];
     shiftsList.forEach(function(sn) {
         var countA = dataA.filter(r => (r.shift||'').includes(sn)).length;
         var countB = dataB.filter(r => (r.shift||'').includes(sn)).length;
         var diff = countB - countA;
-        html += '<tr><td>' + sn + '</td><td>' + countA + '</td><td>' + countB + '</td><td>' + (diff > 0 ? '+' : '') + diff + '</td></tr>';
+        var diffClass = diff > 0 ? 'diff-up' : (diff < 0 ? 'diff-down' : '');
+    html += '<tr><td>' + sn + '</td><td>' + countA + '</td><td>' + countB + '</td><td class="' + diffClass + '">' + (diff > 0 ? '+' : '') + diff + '</td></tr>';
     });
     html += '</table>';
     
-    // ===== 2. SO SÁNH ĂN CƠM =====
-    html += '<h5 style="margin-top:16px;">🍚 So sánh Ăn cơm</h5>';
-    html += '<table class="stats-table-compact"><tr><th>Loại</th><th>' + monthA + '</th><th>' + monthB + '</th><th>Chênh lệch</th></tr>';
+        // ===== 2. SO SÁNH ĂN CƠM =====
+        html += '<div class="compare-title">🍚 So sánh Ăn cơm</div>';
+        html += '<table class="compare-table"><tr><th>Loại</th><th>' + monthA + '</th><th>' + monthB + '</th><th>Chênh lệch</th></tr>';
+
+        var eatA = dataA.filter(r => r.eat === 'Có').length;
+        var eatB = dataB.filter(r => r.eat === 'Có').length;
+        var noA = dataA.length - eatA;
+        var noB = dataB.length - eatB;
     
-    var eatA = dataA.filter(r => r.eat === 'Có').length;
-    var eatB = dataB.filter(r => r.eat === 'Có').length;
-    var noA = dataA.length - eatA;
-    var noB = dataB.length - eatB;
+    // Có ăn
+        var diffEat = eatB - eatA;
+        var diffEatClass = diffEat > 0 ? 'diff-up' : (diffEat < 0 ? 'diff-down' : '');
+        html += '<tr><td>Có ăn</td><td>' + eatA + '</td><td>' + eatB + '</td><td class="' + diffEatClass + '">' + (diffEat > 0 ? '+' : '') + diffEat + '</td></tr>';
+        
+    // Không ăn
+        var diffNo = noB - noA;
+        var diffNoClass = diffNo > 0 ? 'diff-up' : (diffNo < 0 ? 'diff-down' : '');
+        html += '<tr><td>Không ăn</td><td>' + noA + '</td><td>' + noB + '</td><td class="' + diffNoClass + '">' + (diffNo > 0 ? '+' : '') + diffNo + '</td></tr>';
+        
+        html += '</table>';
     
-    html += '<tr><td>Có ăn</td><td>' + eatA + '</td><td>' + eatB + '</td><td>' + (eatB-eatA > 0 ? '+' : '') + (eatB-eatA) + '</td></tr>';
-    html += '<tr><td>Không ăn</td><td>' + noA + '</td><td>' + noB + '</td><td>' + (noB-noA > 0 ? '+' : '') + (noB-noA) + '</td></tr>';
-    html += '</table>';
-    
-    // ===== 3. SO SÁNH CÔNG ĐOẠN =====
-    html += '<h5 style="margin-top:16px;">🔧 So sánh Công đoạn</h5>';
-    html += '<table class="stats-table-compact"><tr><th>Công đoạn</th><th>' + monthA + '</th><th>' + monthB + '</th><th>Chênh lệch</th></tr>';
-    
+        // ===== 3. SO SÁNH CÔNG ĐOẠN =====
+    html += '<div class="compare-title">🔧 So sánh Công đoạn</div>';
+    html += '<table class="compare-table"><tr><th>Công đoạn</th><th>' + monthA + '</th><th>' + monthB + '</th><th>Chênh lệch</th></tr>';
+
     var taskMap = {};
     dataA.forEach(r => (r.tasks||[]).forEach(t => { taskMap[t.task] = taskMap[t.task] || {a:0,b:0}; taskMap[t.task].a++; }));
     dataB.forEach(r => (r.tasks||[]).forEach(t => { taskMap[t.task] = taskMap[t.task] || {a:0,b:0}; taskMap[t.task].b++; }));
@@ -4763,7 +4772,8 @@ window.compareMonths = function() {
         var countA = taskMap[task].a;
         var countB = taskMap[task].b;
         var diff = countB - countA;
-        html += '<tr><td>' + task + '</td><td>' + countA + '</td><td>' + countB + '</td><td>' + (diff > 0 ? '+' : '') + diff + '</td></tr>';
+        var diffClass = diff > 0 ? 'diff-up' : (diff < 0 ? 'diff-down' : '');
+        html += '<tr><td>' + task + '</td><td>' + countA + '</td><td>' + countB + '</td><td class="' + diffClass + '">' + (diff > 0 ? '+' : '') + diff + '</td></tr>';
     });
     html += '</table>';
     
