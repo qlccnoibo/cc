@@ -3356,6 +3356,14 @@ function renderPersonalTab() {
 '<button class="btn btn-sm date-type-btn" data-type="second-half" onclick="setPersonalDateType(\'second-half\')">📅 6 tháng cuối</button>' +
 '</div>' +
 '</div>' +
+'<div id="quarterButtons" style="display:none; justify-content:center; gap:1px; flex-wrap:wrap; margin-top:2px;">' +
+'<button class="btn btn-sm quarter-btn" data-quarter="1" onclick="setQuarter(1)">Quý 1 (T1-T3)</button>' +
+'<button class="btn btn-sm quarter-btn" data-quarter="2" onclick="setQuarter(2)">Quý 2 (T4-T6)</button>' +
+'<button class="btn btn-sm quarter-btn" data-quarter="3" onclick="setQuarter(3)">Quý 3 (T7-T9)</button>' +
+'<button class="btn btn-sm quarter-btn" data-quarter="4" onclick="setQuarter(4)">Quý 4 (T10-T12)</button>' +
+'</div>' +
+'</div>' +
+'</div>' +
 // 👉 THÊM 2 INPUT VÀO ĐÂY
 '<div style="padding: 0 10px;">' +
 '<input type="date" id="personalDateInput" title="Chọn ngày" style="display:none; width:80%; padding:8px; border:1px solid #d1d5db; border-radius:6px; box-sizing:border-box;" />' +
@@ -3400,7 +3408,37 @@ window.setPersonalDateType = function(type) {
     if (dateInput) dateInput.style.display = type === 'date' ? 'block' : 'none';
     if (monthInput) monthInput.style.display = type === 'month' ? 'block' : 'none';
     
+     // Hiện/ẩn nút quý
+    var quarterDiv = document.getElementById('quarterButtons');
+    if (quarterDiv) {
+        quarterDiv.style.display = type === 'quarter' ? 'flex' : 'none';
+    }
+    
     // Tự động tải dữ liệu
+    loadPersonalRecords();
+};
+
+window.setQuarter = function(q) {
+    var now = new Date();
+    var y = now.getFullYear();
+    var startMonth = (q - 1) * 3 + 1;
+    var endMonth = startMonth + 2;
+    
+    var qStart = y + '-' + String(startMonth).padStart(2, '0');
+    var qEnd = y + '-' + String(endMonth).padStart(2, '0');
+    
+    localStorage.setItem('selected_quarter', q);
+    localStorage.setItem('personal_date_type', 'quarter');
+    localStorage.setItem('quarter_start', qStart);
+    localStorage.setItem('quarter_end', qEnd);
+    
+    // Đánh dấu nút active
+    document.querySelectorAll('.quarter-btn').forEach(function(btn) {
+        btn.classList.remove('active');
+    });
+    var activeBtn = document.querySelector('.quarter-btn[data-quarter="' + q + '"]');
+    if (activeBtn) activeBtn.classList.add('active');
+    
     loadPersonalRecords();
 };
 
@@ -3577,14 +3615,23 @@ if (compareBlock) compareBlock.innerHTML = '';
     personalRecs = personalRecs.filter(function(r) { return r.date === dateVal; });
   } else if (dateType === 'month' && monthVal) {
     personalRecs = personalRecs.filter(function(r) { return r.date.startsWith(monthVal); });
-  } else if (dateType === 'quarter') {
-    var now = new Date();
-    var qMonth = Math.floor(now.getMonth() / 3) * 3 + 1;
-    var qStart = now.getFullYear() + '-' + String(qMonth).padStart(2, '0');
-    var qEnd = now.getFullYear() + '-' + String(qMonth + 2).padStart(2, '0');
-    personalRecs = personalRecs.filter(function(r) { 
-        return r.date >= qStart + '-01' && r.date <= qEnd + '-31'; 
-    });
+   } else if (dateType === 'quarter') {
+    var qStart = localStorage.getItem('quarter_start');
+    var qEnd = localStorage.getItem('quarter_end');
+    
+    if (qStart && qEnd) {
+        personalRecs = personalRecs.filter(function(r) { 
+            return r.date >= qStart + '-01' && r.date <= qEnd + '-31'; 
+        });
+    } else {
+        var now = new Date();
+        var qMonth = Math.floor(now.getMonth() / 3) * 3 + 1;
+        qStart = now.getFullYear() + '-' + String(qMonth).padStart(2, '0');
+        qEnd = now.getFullYear() + '-' + String(qMonth + 2).padStart(2, '0');
+        personalRecs = personalRecs.filter(function(r) { 
+            return r.date >= qStart + '-01' && r.date <= qEnd + '-31'; 
+        });
+    }
   } else if (dateType === 'first-half') {
     var y1 = new Date().getFullYear();
     personalRecs = personalRecs.filter(function(r) { 

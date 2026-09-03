@@ -2249,3 +2249,49 @@ td:has(.colleague-tag) {
     width: calc(100% - 24px) !important;
     max-width: 100% !important;
 }
+
+button[onclick="saveToFirebase()"],
+button[onclick="loadFromFirebase()"] {
+    cursor: pointer !important;
+    transition: all 0.2s ease;
+}
+
+button[onclick="saveToFirebase()"]:hover {
+    background: #d97706 !important;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(217, 119, 6, 0.3);
+}
+
+button[onclick="loadFromFirebase()"]:hover {
+    background: #2563eb !important;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3);
+}
+
+button[onclick="saveToFirebase()"]:active,
+button[onclick="loadFromFirebase()"]:active {
+    transform: translateY(0);
+    box-shadow: none;
+}
+
+/* Căn chỉnh 4 nút Quý 1- Quý 4 trong tab cá nhân */
+.quarter-btn {
+    flex: 1;
+    min-width: 70px;
+    text-align: center;
+}
+
+.quarter-btn.active {
+    background: #428009 !important;
+    color: white !important;
+    border-color: #05f741 !important;
+}
+
+.quarter-btn {
+    flex: 0 0 auto !important;
+    margin: 4px;
+}
+
+.quarter-btn + .quarter-btn {
+    margin-left: 1px;
+}
