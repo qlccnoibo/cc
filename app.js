@@ -2144,6 +2144,17 @@ function applyStatsFilters() {
 
   renderHeatmap(filtered);
   renderCharts(filtered);
+
+// Chỉ hiển thị ngày mới nhất KHI không có bộ lọc ngày
+var hasDateFilter = heatmapRange.start || heatmapRange.end;
+
+if (!hasDateFilter && filtered.length > 0) {
+    var latestDate = filtered.reduce(function(max, r) {
+        return r.date > max ? r.date : max;
+    }, filtered[0].date);
+    
+    filtered = filtered.filter(function(r) { return r.date === latestDate; });
+}
   renderStatsTable(filtered);
 
   var insightBox = document.querySelector('#subTabDashboard .insight-box');
@@ -2341,7 +2352,8 @@ function renderCurrentOverviewPage(container) {
   var startIdx = (state.currentPage - 1) * state.itemsPerPage;
   var endIdx = Math.min(startIdx + state.itemsPerPage, state.data.length);
   var pageData = state.data.slice(startIdx, endIdx);
-  var html = '<div style="overflow-x:auto"><table class="stats-table-compact">';
+  var html = '<h3 style="margin:12px 0 8px 0; font-size:16px; font-weight:700; color:#1e293b;">📋 Bảng chi tiết công việc</h3>';
+  html += '<div style="overflow-x:auto"><table class="stats-table-compact">';
   html += '<tr><th>STT</th><th>Ngày</th><th>Nhân viên</th><th>Ca làm</th><th>Công việc</th><th>Ghi chú</th><th>Ăn</th><th style="width:110px">Thao tác</th></tr>';
   pageData.forEach(function(item, idx) {
     var globalIdx = startIdx + idx;
@@ -3349,8 +3361,8 @@ function renderPersonalTab() {
 '<div id="personalHint" style="margin-top:8px; text-align:center; color:#64748b; font-size:13px;">👆 Nhập tên nhân viên và nhấn Xem để tra cứu</div>' +
 '<div style="display:flex; gap:4px; flex-wrap:wrap; margin-top:6px; justify-content:center;">' +
 '<button class="btn btn-sm date-type-btn active" data-type="all" onclick="setPersonalDateType(\'all\')">📅 Tất cả</button>' +
-'<button class="btn btn-sm date-type-btn" data-type="date" onclick="setPersonalDateType(\'date\')">📅 Theo ngày</button>' +
 '<button class="btn btn-sm date-type-btn" data-type="month" onclick="setPersonalDateType(\'month\')">📅 Theo tháng</button>' +
+'<button class="btn btn-sm date-type-btn" data-type="year" onclick="setPersonalDateType(\'year\')">📅 Theo năm</button>' +
 '<button class="btn btn-sm date-type-btn" data-type="quarter" onclick="setPersonalDateType(\'quarter\')">📅 Theo quý</button>' +
 '<button class="btn btn-sm date-type-btn" data-type="first-half" onclick="setPersonalDateType(\'first-half\')">📅 6 tháng đầu</button>' +
 '<button class="btn btn-sm date-type-btn" data-type="second-half" onclick="setPersonalDateType(\'second-half\')">📅 6 tháng cuối</button>' +
@@ -3366,7 +3378,7 @@ function renderPersonalTab() {
 '</div>' +
 // 👉 THÊM 2 INPUT VÀO ĐÂY
 '<div style="padding: 0 10px;">' +
-'<input type="date" id="personalDateInput" title="Chọn ngày" style="display:none; width:80%; padding:8px; border:1px solid #d1d5db; border-radius:6px; box-sizing:border-box;" />' +
+'<input type="number" id="personalYearInput" placeholder="VD: 2026" min="2020" max="2100" style="display:none; width:100%; padding:8px; border:1px solid #d1d5db; border-radius:6px;" />' +
 '<input type="month" id="personalMonthInput" title="Chọn tháng" style="display:none; width:80%; padding:8px; border:1px solid #d1d5db; border-radius:6px; box-sizing:border-box;" />' +
 '</div>' +
 '<div style="display:flex; justify-content:center; gap:8px; margin-top:12px;">' +
@@ -3386,9 +3398,31 @@ function renderPersonalTab() {
 '<div id="personalSummary" style="margin-top:16px;"></div>' +
 '<div id="personalRecords" style="margin-top:12px;"></div>' +
 '</div>';
-
-  setTimeout(function() { initPersonalEmpAutocomplete(); }, 100);
+// Set mặc định "Theo tháng" + tháng hiện tại
+if (!localStorage.getItem('personal_date_type')) {
+    localStorage.setItem('personal_date_type', 'month');
 }
+
+var now = new Date();
+var currentMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+
+setTimeout(function() {
+    // Đánh dấu nút "Theo tháng" active
+    document.querySelectorAll('.date-type-btn').forEach(function(btn) {
+        btn.classList.remove('active');
+    });
+    var monthBtn = document.querySelector('.date-type-btn[data-type="month"]');
+    if (monthBtn) monthBtn.classList.add('active');
+    
+    // Set tháng hiện tại vào input
+    var monthInput = document.getElementById('personalMonthInput');
+    if (monthInput) {
+        monthInput.value = currentMonth;
+        monthInput.style.display = 'block';
+    }
+    
+    initPersonalEmpAutocomplete();
+}, 100);
 
 window.setPersonalDateType = function(type) {
     // Đánh dấu nút active
@@ -3404,9 +3438,11 @@ window.setPersonalDateType = function(type) {
     // Ẩn/hiện input ngày tháng
     var dateInput = document.getElementById('personalDateInput');
     var monthInput = document.getElementById('personalMonthInput');
-    
-    if (dateInput) dateInput.style.display = type === 'date' ? 'block' : 'none';
+    var yearInput = document.getElementById('personalYearInput');
+
+    if (dateInput) dateInput.style.display = 'none';
     if (monthInput) monthInput.style.display = type === 'month' ? 'block' : 'none';
+    if (yearInput) yearInput.style.display = type === 'year' ? 'block' : 'none';
     
      // Hiện/ẩn nút quý
     var quarterDiv = document.getElementById('quarterButtons');
@@ -3530,7 +3566,7 @@ function initPersonalEmpAutocomplete() {
     toggleClearButton('personalEmpInput', 'personalClearBtn');
   }, 100);
 }
-
+}
 window.clearPersonalInput = function() {
     // Xóa tên
     var input = document.getElementById('personalEmpInput');
@@ -3611,8 +3647,9 @@ if (compareBlock) compareBlock.innerHTML = '';
     
   var dateType = localStorage.getItem('personal_date_type') || 'all';
   
-  if (dateType === 'date' && dateVal) {
-    personalRecs = personalRecs.filter(function(r) { return r.date === dateVal; });
+  var yearVal = document.getElementById('personalYearInput')?.value || '';
+if (dateType === 'year' && yearVal) {
+    personalRecs = personalRecs.filter(function(r) { return r.date.startsWith(yearVal); });
   } else if (dateType === 'month' && monthVal) {
     personalRecs = personalRecs.filter(function(r) { return r.date.startsWith(monthVal); });
    } else if (dateType === 'quarter') {
