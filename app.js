@@ -270,11 +270,13 @@ function isEmployeeHidden(empId) {
       bE.textContent = m;
       cE.innerHTML = '';
       var cn = document.createElement('button');
+      cn.type = 'button';
       cn.className = 'btn';
       cn.textContent = 'Hủy';
       cn.onclick = function() { c();
         r(false); };
       var o = document.createElement('button');
+      o.type = 'button';
       o.className = 'btn btn-primary';
       o.textContent = 'Đồng ý';
       o.onclick = function() { c();
