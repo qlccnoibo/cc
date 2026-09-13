@@ -1627,15 +1627,19 @@ window.subAtt = async function(e, keepTimestamp) {
       // Kiểm tra nếu nhân viên được chọn nhiều hơn 1 công đoạn
   var hasMultipleTasks = (ts || []).length > 1;
   
-  if (hasMultipleTasks) {
+ if (hasMultipleTasks) {
       var taskList = (ts || []).map(function(t) { return t.task; }).join(', ');
-      var confirmed = await showConfirm(
+      var confirmed = false;
+      try {
+     confirmed = await showConfirm(
           '⚠️ Bạn đang chọn ' + ts.length + ' công đoạn cho nhân viên:\n\n' + 
           taskList + '\n\n' +
           'Bạn có chắc chắn muốn lưu?', 
-          'Cảnh báo nhiều công đoạn'
-      );
-      
+          'Cảnh báo nhiều công đoạn');
+      }
+      catch(e) {
+    console.error('Lỗi popup:', e);
+    }
       if (!confirmed) return false;
   }
   
