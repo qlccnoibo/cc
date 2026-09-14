@@ -269,18 +269,29 @@ function isEmployeeHidden(empId) {
       tE.textContent = t;
       bE.textContent = m;
       cE.innerHTML = '';
+      
       var cn = document.createElement('button');
       cn.type = 'button';
       cn.className = 'btn';
       cn.textContent = 'Hủy';
-      cn.onclick = function() { c();
-        r(false); };
+      cn.onclick = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        c();
+        r(false);
+      };
+      
       var o = document.createElement('button');
       o.type = 'button';
       o.className = 'btn btn-primary';
       o.textContent = 'Đồng ý';
-      o.onclick = function() { c();
-        r(true); };
+      o.onclick = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        c();
+        r(true);
+      };
+      
       cE.appendChild(cn);
       cE.appendChild(o);
       bd.classList.add('show');
@@ -1652,7 +1663,8 @@ window.subAtt = async function(e, keepTimestamp) {
       tasks: ts,
       note: note,
       timestamp: timestamp,
-      lastModified: Date.now()
+      lastModified: Date.now(),
+      sortOrder: Date.now()
     });
   }
   rec.sort(function(a, b) {
@@ -2318,16 +2330,17 @@ function renderStatsTable(records) {
         note: record.note,
         tasks: record.tasks || [],
         employees: [],
-        firstTimestamp: record.timestamp || '9999'
+        firstTimestamp: record.sortOrder || record.timestamp || '9999'
       };
     }
     var cleanName = cleanEmployeeName(record.employee);
     if (grouped[key].employees.indexOf(cleanName) === -1) {
       grouped[key].employees.push(cleanName);
     }
-    if (record.timestamp && record.timestamp < grouped[key].firstTimestamp) {
-      grouped[key].firstTimestamp = record.timestamp;
-    }
+    var sortVal = record.sortOrder || record.timestamp;
+      if (sortVal && String(sortVal) < String(grouped[key].firstTimestamp)) {
+          grouped[key].firstTimestamp = sortVal;
+      }
   });
   var sortedKeys = Object.keys(grouped);
   sortedKeys.sort(function(a, b) {
@@ -2343,7 +2356,7 @@ function renderStatsTable(records) {
     if (orderB === -1) orderB = 99;
     if (orderA !== orderB) return orderA - orderB;
     if (window._manualSort) return 0;
-    return (groupA.firstTimestamp || '99').localeCompare(groupB.firstTimestamp || '99');
+    return String(groupA.firstTimestamp || '99').localeCompare(String(groupB.firstTimestamp || '99'));
   });
   var allGroups = sortedKeys.map(function(key) {
     return { key: key, data: grouped[key] };
@@ -3034,6 +3047,8 @@ window.openEditModal = function(groupKey) {
   _editModalData.key = groupKey;
   _editModalData.employees = matchingRecords.map(function(r) { return r.employee; });
   _editModalData.originalEmployees = [..._editModalData.employees];
+  _editModalData.originalTimestamp = matchingRecords[0]?.timestamp || new Date().toISOString();
+  _editModalData.originalSortOrder = matchingRecords[0]?.sortOrder || Date.now();
   _editModalData.originalDate = groupDate;
   _editModalData.originalShift = groupShift;
   _editModalData.originalEat = groupEat;
@@ -3197,6 +3212,7 @@ window.saveGroupFromModal = async function() {
     });
   });
   var now = new Date().toISOString();
+  var originalTs = _editModalData.originalTimestamp || now;
   var shiftName = shift ? shift.name : '';
   if (taskObjects.length === 0 && shiftName !== 'Nghỉ') {
     await showAlert('⚠️ Vui lòng chọn ít nhất 1 công đoạn làm việc!', 'Thiếu thông tin');
@@ -3231,8 +3247,9 @@ window.saveGroupFromModal = async function() {
       eat: eat,
       tasks: taskObjects,
       note: note,
-      timestamp: now,
-      lastModified: Date.now()
+      timestamp: originalTs,
+      lastModified: Date.now(),
+      sortOrder: _editModalData.originalSortOrder || Date.now()
     });
   });
   S(REC_KEY, allRecords);
@@ -3274,7 +3291,8 @@ window.closeEditModal = function() {
     key: null, employees: [], shiftIndex: 0, tasks: [],
     eat: 'Có', note: '', originalDate: '', originalShift: '',
     originalEat: '', originalNote: '', originalTasks: [], originalEmployees: [],
-    originalIds: []
+    originalIds: [], originalTimestamp: null,
+    originalSortOrder: null
   };
 };
 

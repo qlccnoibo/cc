@@ -2295,3 +2295,18 @@ button[onclick="loadFromFirebase()"]:active {
 .quarter-btn + .quarter-btn {
     margin-left: 1px;
 }
+
+#__customDialogBackdrop .btn {
+    position: relative;
+    z-index: 99999;
+    pointer-events: auto !important;
+    cursor: pointer !important;
+}
+
+#__customDialogBackdrop .btn:hover {
+    opacity: 0.9;
+}
+
+#__customDialogBackdrop {
+    pointer-events: auto !important;
+}
