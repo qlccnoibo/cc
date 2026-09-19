@@ -3657,9 +3657,7 @@ if (compareBlock) compareBlock.innerHTML = '';
   }
   var matchedEmp = emp.find(function(e) {
     return cleanEmployeeName(e.name).toLowerCase() === empName.toLowerCase() ||
-      e.name.toLowerCase() === empName.toLowerCase() ||
-      removeAccents(cleanEmployeeName(e.name).toLowerCase()) === removeAccents(empName.toLowerCase()) ||
-      removeAccents(e.name.toLowerCase()) === removeAccents(empName.toLowerCase());
+      e.name.toLowerCase() === empName.toLowerCase();
   });
   if (!matchedEmp) {
     summaryEl.innerHTML = '<div class="muted" style="text-align:center;padding:20px;color:#dc2626;">⚠️ Không tìm thấy nhân viên "' + empName + '" trong danh sách</div>';
