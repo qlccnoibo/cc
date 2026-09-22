@@ -50,6 +50,10 @@
           <input type="text" id="employeeInput" placeholder="Nhập tên để tìm kiếm và chọn..." autocomplete="off" />
           <input type="number" id="insertPosition" placeholder="Vị trí (trống = cuối)" min="1" style="width:150px; padding:8px; border:2px solid #d1d5db; border-radius:6px;" />
           <div id="empAutocomplete" class="autocomplete-list"></div>
+           <button type="button" onclick="clearAllSelectedEmployees()" 
+        style="margin-top:6px; padding:6px 12px; background:#ef4444; color:white; border:none; border-radius:8px; font-size:12px; cursor:pointer;">
+            🗑 Xóa tất cả
+        </button>
         </div>
         <div class="selected-employees" id="selectedEmployees"></div>
         <div class="selected-hint" id="selectedHint">👆 Gõ tên và chọn từ danh sách gợi ý để thêm nhân viên</div>
@@ -124,6 +128,9 @@
         <button onclick="loadFromFirebase()" style="background:#3b82f6; color:white; border:none; padding:10px 16px; border-radius:8px;">
             📥 Tải từ Firebase
         </button>
+        <button onclick="loadAllRecordsFromFirebase()" style="background:#8b5cf6; color:white; border:none; padding:10px 16px; border-radius:8px; margin-left:6px;">
+            📥 Tải toàn bộ dữ liệu
+</button>
     </div>
       <div class="manage-layout">
         <div>

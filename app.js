@@ -4336,7 +4336,21 @@ function init() {
           if (data) {
               if (data.employees) localStorage.setItem('e', JSON.stringify(data.employees));
               if (data.groups) localStorage.setItem('g', JSON.stringify(data.groups));
-              if (data.records) localStorage.setItem('r', JSON.stringify(data.records));
+              if (data.records) {
+            var allRecs = Array.isArray(data.records) ? data.records : Object.values(data.records);
+    
+    // Chỉ lấy 3 tháng gần nhất
+    var cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - 3);
+    var cutoffStr = cutoff.toISOString().split('T')[0];
+    
+    var recentRecs = allRecs.filter(function(r) { 
+        return r.date >= cutoffStr; 
+    });
+    
+    localStorage.setItem('r', JSON.stringify(recentRecs));
+    console.log('✅ Đã load ' + recentRecs.length + '/' + allRecs.length + ' bản ghi (3 tháng gần nhất)');
+}
               refreshAllUI();
               rEmp();
               console.log('✅ Đã cập nhật từ Firebase');
@@ -5089,4 +5103,41 @@ if (compareResult) {
 
 window.scrollToTop = function() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+// Load toàn bộ dữ liệu khi cần
+window.loadAllRecordsFromFirebase = async function() {
+    try {
+        var snapshot = await db.ref('chamcong/records').once('value');
+        var data = snapshot.val();
+        
+        if (data) {
+            var allRecs = Array.isArray(data) ? data : Object.values(data);
+            localStorage.setItem('r', JSON.stringify(allRecs));
+            
+            refreshAllUI();
+            showAlert('✅ Đã load toàn bộ ' + allRecs.length + ' bản ghi!');
+        }
+    } catch(e) {
+        console.error('Lỗi load toàn bộ:', e);
+        showAlert('❌ Lỗi load dữ liệu!');
+    }
+};
+
+window.clearAllSelectedEmployees = async function() {
+    if (selectedEmployees.length === 0) {
+        showAlert('⚠️ Chưa có nhân viên nào được chọn!');
+        return;
+    }
+    
+    var confirmed = await showConfirm(
+        '🗑 Xóa toàn bộ ' + selectedEmployees.length + ' nhân viên đã chọn?',
+        'Xác nhận xóa'
+    );
+    
+    if (!confirmed) return;
+    
+    selectedEmployees = [];
+    renderSelectedEmployees();
+    showAlert('✅ Đã xóa toàn bộ nhân viên đã chọn!');
 };
