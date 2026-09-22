@@ -2310,3 +2310,18 @@ button[onclick="loadFromFirebase()"]:active {
 #__customDialogBackdrop {
     pointer-events: auto !important;
 }
+
+.sub-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px 0;
+}
+
+.sub-tab {
+    flex: 0 0 auto;
+    font-size: 12px !important;
+    padding: 6px 12px !important;
+    white-space: nowrap;
+}

@@ -1851,6 +1851,7 @@ function renderStatistics() {
   html += '<button class="sub-tab" onclick="switchSubTab(\'shift-detail\')"style="font-size:13px"">Theo Ca</button>';
   html += '<button class="sub-tab" onclick="switchSubTab(\'task-detail\')"style="font-size:13px">Theo CĐ</button>';
   html += '<button class="sub-tab" onclick="switchSubTab(\'double-shift\')"style="font-size:13px">Tăng ca</button>';
+  html += '<button class="sub-tab" onclick="switchSubTab(\'pair-ranking\')"style="font-size:13px">Cặp đôi làm chung nhiều nhất</button>';
   html += '</div>';
 
   // Dashboard tab
@@ -1967,6 +1968,19 @@ sortedTasks.forEach(function(task) {
   html += '<div id="overtimeRanking" style="margin-bottom:16px;"></div>';
   html += '<div id="overtimeDetail"></div>';
   html += '</div>';
+
+html += '<div id="subTabPairRanking" style="display:none;">';
+html += '<div class="card">';
+html += '<h3>🤝 Top cặp đôi hay làm chung</h3>';
+html += '<div style="display:flex; gap:8px; margin:12px 0;">';
+html += '<label>📅 Chọn tháng:</label>';
+html += '<input type="month" id="pairMonth" style="flex:1; max-width:200px;" />';
+html += '<button class="btn btn-primary btn-sm" onclick="showPairRanking()">🔍 Thống kê</button>';
+html += '</div>';
+html += '<p style="color:#64748b; font-size:13px; margin:0 0 12px 0;">👉 Chỉ tính khi cùng ngày + cùng ca + cùng công đoạn</p>';
+html += '<div id="pairRankingResult"></div>';
+html += '</div>';
+html += '</div>';
 
   el.innerHTML = html;
   initStatsAutocomplete();
@@ -3368,6 +3382,12 @@ window.switchSubTab = function(tabName) {
     if (subTabs[3]) subTabs[3].classList.add('active');
     loadDoubleShiftRanking();
   }
+  else if (tabName === 'pair-ranking') { 
+    if (subTabs[4]) subTabs[4].classList.add('active');
+    var pairEl = document.getElementById('subTabPairRanking');
+    if (pairEl) pairEl.style.display = 'block';
+    showPairRanking();
+}
 };
 
 // ==================== PERSONAL TAB FUNCTIONS ====================
@@ -5140,4 +5160,86 @@ window.clearAllSelectedEmployees = async function() {
     selectedEmployees = [];
     renderSelectedEmployees();
     showAlert('✅ Đã xóa toàn bộ nhân viên đã chọn!');
+};
+
+// ==================== THỐNG KÊ CẶP ĐÔI ====================
+
+window.findBestPairs = function(records) {
+    var pairMap = {};
+    
+    // Gom nhóm theo ngày + ca + công đoạn
+    var groups = {};
+    records.forEach(function(r) {
+        var taskNames = (r.tasks || []).map(function(t) { return t.task; }).sort().join(',');
+        var key = r.date + '|' + r.shift + '|' + taskNames;
+        
+        if (!groups[key]) groups[key] = [];
+        var empName = cleanEmployeeName(r.employee);
+        if (groups[key].indexOf(empName) === -1) {
+            groups[key].push(empName);
+        }
+    });
+    
+    // Đếm cặp đôi
+    for (var key in groups) {
+        var emps = groups[key];
+        if (emps.length < 2) continue; // Cần ít nhất 2 người
+        
+        for (var i = 0; i < emps.length; i++) {
+            for (var j = i + 1; j < emps.length; j++) {
+                var pair = [emps[i], emps[j]].sort().join(' 💑 ');
+                pairMap[pair] = (pairMap[pair] || 0) + 1;
+            }
+        }
+    }
+    
+    // Sắp xếp theo số lần
+    var ranking = Object.entries(pairMap)
+        .sort(function(a, b) { return b[1] - a[1]; })
+        .slice(0, 30);
+    
+    return ranking;
+};
+
+window.showPairRanking = function() {
+    var records = L(REC_KEY, []);
+    var resultEl = document.getElementById('pairRankingResult');
+    var monthInput = document.getElementById('pairMonth');
+    
+    if (!resultEl) return;
+      // Lọc theo tháng nếu có
+    var monthVal = monthInput?.value || '';
+    if (monthVal) {
+        records = records.filter(function(r) { return r.date.startsWith(monthVal); });
+    }
+    
+    if (records.length === 0) {
+        resultEl.innerHTML = '<div class="muted" style="text-align:center;padding:40px;">📭 Chưa có dữ liệu chấm công</div>';
+        return;
+    }
+    
+    var ranking = findBestPairs(records);
+    
+    if (ranking.length === 0) {
+        resultEl.innerHTML = '<div class="muted" style="text-align:center;padding:40px;">📭 Chưa có cặp đôi nào làm chung</div>';
+        return;
+    }
+    
+    var html = '<div style="max-height:600px; overflow-y:auto;">';
+    html += '<table class="stats-table-compact">';
+    html += '<tr><th>#</th><th>Cặp đôi</th><th>Số lần làm chung</th></tr>';
+    
+    ranking.forEach(function(item, idx) {
+        var medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : (idx + 1) + '.';
+        var bgColor = idx === 0 ? '#fef3c7' : idx === 1 ? '#f1f5f9' : idx === 2 ? '#fef2f2' : '';
+        
+        html += '<tr style="background:' + bgColor + ';">';
+        html += '<td style="text-align:center;">' + medal + '</td>';
+        html += '<td><strong>' + item[0] + '</strong></td>';
+        html += '<td><span style="background:#ec4899; color:white; padding:3px 10px; border-radius:12px; font-weight:600;">' + item[1] + ' lần</span></td>';
+        html += '</tr>';
+    });
+    
+    html += '</table></div>';
+    resultEl.innerHTML = html;
 };
