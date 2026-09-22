@@ -5187,7 +5187,7 @@ window.findBestPairs = function(records) {
         
         for (var i = 0; i < emps.length; i++) {
             for (var j = i + 1; j < emps.length; j++) {
-                var pair = [emps[i], emps[j]].sort().join(' 💑 ');
+                var pair = [emps[i], emps[j]].sort().join(' & ');
                 pairMap[pair] = (pairMap[pair] || 0) + 1;
             }
         }
