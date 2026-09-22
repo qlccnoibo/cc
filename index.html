@@ -18,7 +18,7 @@
   <div class="header">
     <h1 style="margin-bottom: 4px;">📋 Hệ thống quản lý & chấm công</h1>
     <p style="font-style: italic; font-size: 12px; color: #fafafa; margin: 0; text-align: right;">
-        Version 2 .0 - Copyright by Binh Kca</p>
+        Version 3.1.1 - Copyright by Binh Kca</p>
     <div id="liveClock" style="text-align:left; font-size:14px; color:#f7b206; font-weight:500; margin-top:2px; letter-spacing:0px;"></div>
   </div>
 
@@ -47,7 +47,7 @@
       <form id="attendanceForm" autocomplete="off">
         <label>👤 Nhân viên <span class="muted" id="selectedCount">(0 đã chọn)</span></label>
         <div class="autocomplete-wrapper">
-          <input type="text" id="employeeInput" placeholder="Nhập tên để tìm kiếm và chọn..." autocomplete="off" />
+          <input type="text" id="employeeInput" placeholder="Gõ tên và chọn từ danh sách gợi ý để thêm nhân viên" autocomplete="off" />
           <input type="number" id="insertPosition" placeholder="Vị trí (trống = cuối)" min="1" style="width:150px; padding:8px; border:2px solid #d1d5db; border-radius:6px;" />
           <div id="empAutocomplete" class="autocomplete-list"></div>
            <button type="button" onclick="clearAllSelectedEmployees()" 
@@ -56,8 +56,8 @@
         </button>
         </div>
         <div class="selected-employees" id="selectedEmployees"></div>
-        <div class="selected-hint" id="selectedHint">👆 Gõ tên và chọn từ danh sách gợi ý để thêm nhân viên</div>
-        <div class="row"><div class="col"><label>📅 Ngày</label><input type="date" id="attDate" /></div></div>
+        <!--<div class="selected-hint" id="selectedHint">👆 Gõ tên và chọn từ danh sách gợi ý để thêm nhân viên</div> -->
+        <div class="row"><div class="col"><label>📅 Chọn ngày chấm công</label><input type="date" id="attDate" /></div></div>
         <label style="margin-top:8px">🕐 Ca làm việc</label>
         <div id="shiftGrid" class="shift-grid"></div>
         <label style="margin-top:10px">🍚 Ăn cơm</label>
