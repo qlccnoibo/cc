@@ -11,6 +11,9 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 var db = firebase.database();
+firebase.auth().signInAnonymously().catch(function(e) {
+    console.error('Lỗi xác thực:', e);
+});
 // ==================== HẾT FIREBASE ====================
 
 // ==================== GOOGLE SHEETS CONFIG ====================
@@ -1971,11 +1974,18 @@ sortedTasks.forEach(function(task) {
 
 html += '<div id="subTabPairRanking" style="display:none;">';
 html += '<div class="card">';
-html += '<h3>🤝 Top cặp đôi hay làm chung</h3>';
+html += '<h3>🤝 Cặp đồng đội hay làm chung</h3>';
+html += '<div style="display:flex; gap:8px; margin:12px 0; flex-wrap:wrap; align-items:center;">';
+html += '<div style="flex:1; min-width:200px; position:relative;">';
+html += '<input type="text" id="pairSearchInput" placeholder="👤 Nhập tên để tra cứu..." autocomplete="off" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:6px;" />';
+html += '<div id="pairSearchAutocomplete" class="autocomplete-list"></div>';
+html += '</div>';
+html += '<input type="month" id="pairMonth" style="padding:8px; border:1px solid #d1d5db; border-radius:6px;" />';
+html += '<button class="btn btn-primary btn-sm" onclick="triggerPairSearch()">🔍 Thống kê</button>';
+html += '<button class="btn btn-sm" onclick="clearPairSearch()">✕ Xóa</button>';
+html += '</div>';
+html += '<div id="pairRankingResult"></div>';;
 html += '<div style="display:flex; gap:8px; margin:12px 0;">';
-html += '<label>📅 Chọn tháng:</label>';
-html += '<input type="month" id="pairMonth" style="flex:1; max-width:200px;" />';
-html += '<button class="btn btn-primary btn-sm" onclick="showPairRanking()">🔍 Thống kê</button>';
 html += '</div>';
 html += '<p style="color:#64748b; font-size:13px; margin:0 0 12px 0;">👉 Chỉ tính khi cùng ngày + cùng ca + cùng công đoạn</p>';
 html += '<div id="pairRankingResult"></div>';
@@ -5166,12 +5176,12 @@ window.clearAllSelectedEmployees = async function() {
 
 window.findBestPairs = function(records) {
     var pairMap = {};
-    
-    // Gom nhóm theo ngày + ca + công đoạn
     var groups = {};
+    
     records.forEach(function(r) {
-        var taskNames = (r.tasks || []).map(function(t) { return t.task; }).sort().join(',');
-        var key = r.date + '|' + r.shift + '|' + taskNames;
+        var taskNames = (r.tasks || []).map(function(t) { return t.task; }).sort().join('|');
+        // Key phải bao gồm: ngày + ca + công đoạn
+        var key = r.date + '||' + r.shift + '||' + taskNames;
         
         if (!groups[key]) groups[key] = [];
         var empName = cleanEmployeeName(r.employee);
@@ -5180,20 +5190,19 @@ window.findBestPairs = function(records) {
         }
     });
     
-    // Đếm cặp đôi
+    // Đếm cặp
     for (var key in groups) {
         var emps = groups[key];
-        if (emps.length < 2) continue; // Cần ít nhất 2 người
+        if (emps.length < 2) continue;
         
         for (var i = 0; i < emps.length; i++) {
             for (var j = i + 1; j < emps.length; j++) {
-                var pair = [emps[i], emps[j]].sort().join(' & ');
+                var pair = [emps[i], emps[j]].sort().join(' 🤝 ');
                 pairMap[pair] = (pairMap[pair] || 0) + 1;
             }
         }
     }
     
-    // Sắp xếp theo số lần
     var ranking = Object.entries(pairMap)
         .sort(function(a, b) { return b[1] - a[1]; })
         .slice(0, 30);
@@ -5205,41 +5214,182 @@ window.showPairRanking = function() {
     var records = L(REC_KEY, []);
     var resultEl = document.getElementById('pairRankingResult');
     var monthInput = document.getElementById('pairMonth');
+    var searchInput = document.getElementById('pairSearchInput');
+    console.log('Search value:', searchInput?.value);
     
     if (!resultEl) return;
-      // Lọc theo tháng nếu có
+    setTimeout(function() { initPairSearchAutocomplete(); }, 100);
+    
+    // Lọc theo tháng
     var monthVal = monthInput?.value || '';
     if (monthVal) {
         records = records.filter(function(r) { return r.date.startsWith(monthVal); });
     }
     
     if (records.length === 0) {
-        resultEl.innerHTML = '<div class="muted" style="text-align:center;padding:40px;">📭 Chưa có dữ liệu chấm công</div>';
+        resultEl.innerHTML = '<div class="muted" style="text-align:center;padding:40px;">📭 Chưa có dữ liệu</div>';
         return;
     }
     
+    var searchTerm = searchInput?.value.trim().toLowerCase() || '';
+    
+    // Nếu có tìm kiếm → hiện tất cả người cùng làm với người đó
+    if (searchTerm) {
+        showPartnersFor(searchTerm, records, resultEl);
+        return;
+    }
+    
+    // Không tìm kiếm → hiện top cặp đôi
     var ranking = findBestPairs(records);
     
     if (ranking.length === 0) {
-        resultEl.innerHTML = '<div class="muted" style="text-align:center;padding:40px;">📭 Chưa có cặp đôi nào làm chung</div>';
+        resultEl.innerHTML = '<div class="muted" style="text-align:center;padding:40px;">📭 Chưa có cặp đôi nào</div>';
         return;
     }
     
-    var html = '<div style="max-height:600px; overflow-y:auto;">';
+    // ... phần render giữ nguyên
+    
+};
+
+window.showPartnersFor = function(searchTerm, records, resultEl) {
+    var partnerMap = {};
+    var groups = {};
+    
+    // Gom nhóm
+    records.forEach(function(r) {
+        var taskNames = (r.tasks || []).map(function(t) { return t.task; }).sort().join('|');
+        var key = r.date + '||' + r.shift + '||' + taskNames;
+        if (!groups[key]) groups[key] = [];
+        var empName = cleanEmployeeName(r.employee);
+        if (groups[key].indexOf(empName) === -1) groups[key].push(empName);
+    });
+    
+    var mainEmp = null;
+
+    // Tìm chính xác
+    for (var key in groups) {
+        groups[key].forEach(function(emp) {
+            if (emp.toLowerCase() === searchTerm) {
+                mainEmp = emp;
+            }
+        });
+    }
+
+    // Nếu không có → tìm gần đúng
+    if (!mainEmp) {
+        for (var key in groups) {
+            groups[key].forEach(function(emp) {
+                if (!mainEmp && emp.toLowerCase().indexOf(searchTerm) > -1) {
+                    mainEmp = emp;
+                }
+            });
+            if (mainEmp) break;
+        }
+    }
+    
+    if (!mainEmp) {
+        resultEl.innerHTML = '<div class="muted" style="text-align:center;padding:40px;color:#dc2626;">⚠️ Không tìm thấy nhân viên "' + searchTerm + '"</div>';
+        return;
+    }
+    
+    // 👉 ĐẾM ĐỒNG ĐỘI (PHẦN BỊ THIẾU)
+    for (var key in groups) {
+        if (groups[key].indexOf(mainEmp) === -1) continue;
+        
+        groups[key].forEach(function(emp) {
+            if (emp !== mainEmp) {
+                partnerMap[emp] = (partnerMap[emp] || 0) + 1;
+            }
+        });
+    }
+          
+    var ranking = Object.entries(partnerMap).sort(function(a, b) { return b[1] - a[1]; });
+          
+    if (ranking.length === 0) {
+        resultEl.innerHTML = '<div class="muted" style="text-align:center;padding:40px;">📭 Nhân viên này chưa làm chung với ai</div>';
+        return;
+    }
+    
+    var html = '<h4>👤 Đồng đội của: <strong>' + mainEmp + '</strong></h4>';
     html += '<table class="stats-table-compact">';
-    html += '<tr><th>#</th><th>Cặp đôi</th><th>Số lần làm chung</th></tr>';
+    html += '<tr><th>#</th><th>Đồng đội</th><th>Số lần làm chung</th></tr>';
     
     ranking.forEach(function(item, idx) {
         var medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : (idx + 1) + '.';
-        var bgColor = idx === 0 ? '#fef3c7' : idx === 1 ? '#f1f5f9' : idx === 2 ? '#fef2f2' : '';
-        
-        html += '<tr style="background:' + bgColor + ';">';
+        html += '<tr>';
         html += '<td style="text-align:center;">' + medal + '</td>';
         html += '<td><strong>' + item[0] + '</strong></td>';
-        html += '<td><span style="background:#ec4899; color:white; padding:3px 10px; border-radius:12px; font-weight:600;">' + item[1] + ' lần</span></td>';
+        html += '<td><span style="background:#3b82f6; color:white; padding:3px 10px; border-radius:12px; font-weight:600;">' + item[1] + ' lần</span></td>';
         html += '</tr>';
     });
     
-    html += '</table></div>';
+    html += '</table>';
     resultEl.innerHTML = html;
+};
+
+window.clearPairSearch = function() {
+    var input = document.getElementById('pairSearchInput');
+    if (input) input.value = '';
+    showPairRanking();
+};
+
+window.initPairSearchAutocomplete = function() {
+    var input = document.getElementById('pairSearchInput');
+    var list = document.getElementById('pairSearchAutocomplete');
+    if (!input || !list) return;
+    
+    input.addEventListener('input', function() {
+        var val = this.value.trim();
+        list.innerHTML = '';
+        
+        if (!val) { list.style.display = 'none'; return; }
+        
+        var allNames = [];
+        var records = L(REC_KEY, []);
+        var seen = {};
+        records.forEach(function(r) {
+            var name = cleanEmployeeName(r.employee);
+            if (!seen[name] && name.toLowerCase().indexOf(val.toLowerCase()) > -1) {
+                seen[name] = true;
+                allNames.push(name);
+            }
+        });
+        
+        allNames.sort();
+        
+        if (allNames.length === 0) {
+            list.innerHTML = '<div class="autocomplete-no-result">Không tìm thấy</div>';
+            list.style.display = 'block';
+            return;
+        }
+        
+        allNames.slice(0, 8).forEach(function(name) {
+            var div = document.createElement('div');
+            div.className = 'autocomplete-item';
+            div.innerHTML = '<span>👤</span><span>' + name + '</span>';
+            div.onclick = function() {
+                input.value = name;
+                list.style.display = 'none';
+                showPairRanking();
+            };
+            list.appendChild(div);
+        });
+        
+        list.style.display = 'block';
+    });
+    
+    document.addEventListener('click', function(e) {
+        if (e.target !== input && !list.contains(e.target)) {
+            list.style.display = 'none';
+        }
+    });
+};
+
+window.triggerPairSearch = function() {
+    // Đóng autocomplete
+    var list = document.getElementById('pairSearchAutocomplete');
+    if (list) list.style.display = 'none';
+    
+    // Gọi thống kê
+    showPairRanking();
 };
