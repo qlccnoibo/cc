@@ -4351,116 +4351,99 @@ function updateClock() {
 
 // ==================== INIT ====================
 function init() {
-  if (!Date.prototype._toISOString) {
-    Date.prototype._toISOString = Date.prototype.toISOString;
-    Date.prototype.toISOString = function() {
-      var offset = 7 * 60 * 60 * 1000;
-      var d = new Date(this.getTime() + offset);
-      return d._toISOString().split('T')[0] + 'T00:00:00.000Z';
-    };
-  }
-  checkAdmin();
-  if (!isAdmin && typeof db !== 'undefined') {
-      db.ref('chamcong').on('value', function(snapshot) {
-          var data = snapshot.val();
-          if (data) {
-              if (data.employees) localStorage.setItem('e', JSON.stringify(data.employees));
-              if (data.groups) localStorage.setItem('g', JSON.stringify(data.groups));
-              if (data.records) {
-            var allRecs = Array.isArray(data.records) ? data.records : Object.values(data.records);
-    
-    // Chỉ lấy 3 tháng gần nhất
-    var cutoff = new Date();
-    cutoff.setMonth(cutoff.getMonth() - 3);
-    var cutoffStr = cutoff.toISOString().split('T')[0];
-    
-    var recentRecs = allRecs.filter(function(r) { 
-        return r.date >= cutoffStr; 
-    });
-    
-    localStorage.setItem('r', JSON.stringify(recentRecs));
-    console.log('✅ Đã load ' + recentRecs.length + '/' + allRecs.length + ' bản ghi (3 tháng gần nhất)');
-}
-              refreshAllUI();
-              rEmp();
-              console.log('✅ Đã cập nhật từ Firebase');
-          }
-      });
-  }
-  var savedToken = localStorage.getItem('github_token');
-  if (savedToken && savedToken.length > 0) {
-    GITHUB_TOKEN = savedToken;
-    console.log('🔐 Đã load GitHub Token từ máy này');
-  }
-  loadHiddenEmployeesFast().then(function() {
-    rEmp();
-    refreshAllAutocompletes();
-  });
-  if (!isAdmin) {
-    fetch('https://raw.githubusercontent.com/qlccnoibo/cc/main/data.json?t=' + Date.now())
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        if (data) {
-          if (data.employees) {
-            localStorage.setItem('e', JSON.stringify(data.employees));
-          }
-          if (data.groups) {
-            localStorage.setItem('g', JSON.stringify(data.groups));
-          }
-          if (data.records) {
-            localStorage.setItem('r', JSON.stringify(data.records));
-          }
-          refreshAllUI();
-          rEmp();
-          console.log('✅ Đã tải dữ liệu từ GitHub');
-        }
-      })
-      .catch(function(e) {
-        console.error('❌ Lỗi:', e);
-      });
-  }
-  var attDate = document.getElementById('attDate');
-  if (attDate) attDate.value = new Date().toISOString().split('T')[0];
-  rShifts();
-  rGFull();
-  rGCompact();
-  rEmp();
-  rShiftList();
-  renderAudit();
-  renderStatistics();
-  initAutocomplete();
-  renderSelectedEmployees();
-  initNoteCharCount();
-  renderMissingEmployees();
-  var empCount = document.getElementById('empCount');
-  if (empCount) empCount.textContent = emp.length + ' NV';
-  if (USE_GOOGLE_SHEETS) {
-    syncFromSheets().then(function() {
-      rShifts();
-      rGFull();
-      rGCompact();
-      rEmp();
-      rShiftList();
-      renderAudit();
-      renderStatistics();
-      renderMissingEmployees();
-      var empCount = document.getElementById('empCount');
-      if (empCount) empCount.textContent = emp.length + ' NV';
-      console.log('✅ Đã cập nhật giao diện với dữ liệu mới từ Sheets');
-    });
-  }
-  updateClock();
-  setInterval(updateClock, 1000);
-  initModalAutocomplete();
-  document.getElementById('editGroupModal').addEventListener('click', function(e) {
-    if (e.target === this) closeEditModal();
-  });
-  document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape' &&
-      document.getElementById('editGroupModal').classList.contains('show')) {
-      closeEditModal();
+    if (!Date.prototype._toISOString) {
+        Date.prototype._toISOString = Date.prototype.toISOString;
+        Date.prototype.toISOString = function() {
+            var offset = 7 * 60 * 60 * 1000;
+            var d = new Date(this.getTime() + offset);
+            return d._toISOString().split('T')[0] + 'T00:00:00.000Z';
+        };
     }
-  });
+    
+    checkAdmin();
+    
+    // 👉 1. HIỆN NGAY dữ liệu cũ từ localStorage (không chờ)
+    rShifts();
+    rGFull();
+    rGCompact();
+    rEmp();
+    rShiftList();
+    renderAudit();
+    renderStatistics();
+    initAutocomplete();
+    renderSelectedEmployees();
+    initNoteCharCount();
+    renderMissingEmployees();
+    var empCount = document.getElementById('empCount');
+    if (empCount) empCount.textContent = emp.length + ' NV';
+    
+    // 👉 2. LOAD NGẦM từ Firebase (chỉ nhân viên)
+    if (!isAdmin && typeof db !== 'undefined') {
+        db.ref('chamcong').once('value').then(function(snapshot) {
+            var data = snapshot.val();
+            if (!data) return;
+            
+            // Employees
+            if (data.employees) {
+                localStorage.setItem('e', JSON.stringify(data.employees));
+            }
+            
+            // Groups
+            if (data.groups) {
+                var groupsArr = Array.isArray(data.groups) ? data.groups : Object.values(data.groups);
+                localStorage.setItem('g', JSON.stringify(groupsArr));
+            }
+            
+            // Records - chỉ 3 tháng gần nhất
+            if (data.records) {
+                var allRecs = Array.isArray(data.records) ? data.records : Object.values(data.records);
+                var cutoff = new Date();
+                cutoff.setMonth(cutoff.getMonth() - 3);
+                var cutoffStr = cutoff.toISOString().split('T')[0];
+                var recentRecs = allRecs.filter(function(r) { return r.date >= cutoffStr; });
+                localStorage.setItem('r', JSON.stringify(recentRecs));
+                console.log('✅ Firebase: ' + recentRecs.length + '/' + allRecs.length + ' bản ghi (3 tháng)');
+            }
+            
+            // Cập nhật giao diện
+            refreshAllUI();
+            console.log('✅ Đã đồng bộ từ Firebase');
+        }).catch(function(e) {
+            console.error('❌ Lỗi Firebase:', e);
+        });
+    }
+    
+    // 👉 3. GitHub Token (nếu có)
+    var savedToken = localStorage.getItem('github_token');
+    if (savedToken && savedToken.length > 0) {
+        GITHUB_TOKEN = savedToken;
+        console.log('🔐 Đã load GitHub Token');
+    }
+    
+    // 👉 4. Load hidden employees
+    loadHiddenEmployeesFast().then(function() {
+        rEmp();
+        refreshAllAutocompletes();
+    });
+    
+    // 👉 5. Set ngày mặc định
+    var attDate = document.getElementById('attDate');
+    if (attDate) attDate.value = new Date().toISOString().split('T')[0];
+    
+    // 👉 6. Clock
+    updateClock();
+    setInterval(updateClock, 1000);
+    
+    // 👉 7. Modal events
+    initModalAutocomplete();
+    document.getElementById('editGroupModal').addEventListener('click', function(e) {
+        if (e.target === this) closeEditModal();
+    });
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && document.getElementById('editGroupModal').classList.contains('show')) {
+            closeEditModal();
+        }
+    });
 }
 
 // ==================== EVENT BINDINGS ====================
