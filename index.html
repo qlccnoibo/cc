@@ -13,6 +13,13 @@
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
   <!-- CSS -->
   <link rel="stylesheet" href="style.css">
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#2563eb">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Chấm công">
+  <link rel="apple-touch-icon" href="https://via.placeholder.com/192x192/2563eb/ffffff?text=CC">
 </head>
 <body>
   <div class="header">
@@ -285,6 +292,13 @@
   <!-- Note Popup -->
   <div id="notePopup" class="note-popup"></div>
 
+  <script>
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js')
+        .then(function() { console.log('✅ Service Worker đã đăng ký'); })
+        .catch(function(e) { console.error('❌ Lỗi SW:', e); });
+}
+</script>
   <!-- JavaScript -->
   <script src="app.js?v=2"></script>
 </body>
