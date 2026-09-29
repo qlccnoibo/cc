@@ -1,5 +1,6 @@
-// Service Worker - Cache offline
-var CACHE_NAME = 'chamcong-v1';
+// Tăng version để force update
+var CACHE_NAME = 'chamcong-v2';  // 👈 Đổi v1 → v2
+
 var urlsToCache = [
     '/cc/',
     '/cc/index.html',
@@ -7,7 +8,6 @@ var urlsToCache = [
     '/cc/style.css'
 ];
 
-// Cài đặt - Cache files
 self.addEventListener('install', function(event) {
     event.waitUntil(
         caches.open(CACHE_NAME).then(function(cache) {
@@ -17,7 +17,6 @@ self.addEventListener('install', function(event) {
     self.skipWaiting();
 });
 
-// Kích hoạt - Xóa cache cũ
 self.addEventListener('activate', function(event) {
     event.waitUntil(
         caches.keys().then(function(cacheNames) {
@@ -33,12 +32,18 @@ self.addEventListener('activate', function(event) {
     self.clients.claim();
 });
 
-// Fetch - Ưu tiên cache, fallback network
+// 👈 QUAN TRỌNG: Không cache data từ Firebase
 self.addEventListener('fetch', function(event) {
+    // Bỏ qua request đến Firebase, GitHub API
+    if (event.request.url.includes('firebase') || 
+        event.request.url.includes('googleapis') ||
+        event.request.url.includes('githubusercontent')) {
+        return; // Không cache
+    }
+    
     event.respondWith(
         caches.match(event.request).then(function(response) {
-            if (response) return response;
-            return fetch(event.request);
+            return response || fetch(event.request);
         })
     );
 });
