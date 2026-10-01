@@ -2409,9 +2409,31 @@ function renderCurrentOverviewPage(container) {
     var noteSafe = escHtml(noteText);
     var eatBadge = group.eat === 'Có' ? 'yes' : 'no';
     var employeeTags = '';
-    group.employees.forEach(function(empName) {
-      employeeTags += '<span class="emp-tag">' + escHtml(cleanEmployeeName(empName)) + '</span> ';
+
+// Đếm số ca trong ngày cho từng nhân viên (bao gồm cả Nghỉ)
+    var empDayMap = {};
+    var allRecords = L(REC_KEY, []);
+    allRecords.forEach(function(r) {
+        var key = cleanEmployeeName(r.employee) + '|' + r.date;
+        empDayMap[key] = (empDayMap[key] || 0) + 1;
     });
+
+    // Render tag với đánh dấu
+    group.employees.forEach(function(empName) {
+        var name = cleanEmployeeName(empName);
+        var key = name + '|' + group.date;
+        var count = empDayMap[key] || 1;
+        var isMultiShift = count > 1;
+        
+        var tagStyle = isMultiShift 
+            ? 'background:#f59e0b; color:white; font-weight:700; border:2px solid #c7422bff;' 
+            : '';
+        var icon = '';
+        var title = isMultiShift ? 'Làm ' + count + ' ca trong ngày' : '';
+        
+        employeeTags += '<span class="emp-tag" style="' + tagStyle + '" title="' + title + '">' + escHtml(name) + icon + '</span> ';
+    });
+
     html += '<tr data-gidx="' + dataIndex + '">' +
       '<td>' +
     (isAdmin 
