@@ -2628,7 +2628,7 @@ window.loadShiftRanking = function() {
         var barColors = { 0: '#2563eb', 1: '#059669', 2: '#d97706', 'default': '#6366f1' };
         var barColor = idx === 0 ? barColors[0] : idx === 1 ? barColors[1] : idx === 2 ? barColors[2] : barColors['default'];
         var barGradient = idx === 0 ? 'linear-gradient(90deg, #1d4ed8, #3b82f6)' : idx === 1 ? 'linear-gradient(90deg, #047857, #10b981)' : idx === 2 ? 'linear-gradient(90deg, #b45309, #f59e0b)' : 'linear-gradient(90deg, #4f46e5, #818cf8)';
-        html += '<div style="display:flex; align-items:center; gap:12px; padding:14px 16px; background:' + bgColor + '; border:2px solid ' + borderColor + '; border-radius:10px; margin-bottom:8px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);">';
+        html += '<div onclick="showShiftDetail(\'' + empName.replace(/'/g, "\\'") + '\', \'' + shiftName.replace(/'/g, "\\'") + '\', \'' + monthVal + '\')" style="display:flex; align-items:center; gap:12px; padding:14px 16px; background:' + bgColor + '; border:2px solid ' + borderColor + '; border-radius:10px; margin-bottom:8px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); cursor:pointer;">';
         html += '<div style="width:35px; text-align:center; font-size:20px;">' + rankIcon + '</div>';
         html += '<div style="flex:1; font-weight:' + fontWeight + '; font-size:15px; color:' + nameColor + ';">' + empName + '</div>';
         html += '<div style="flex:2; background:#e5e7eb; border-radius:12px; height:10px; overflow:hidden; box-shadow:inset 0 2px 4px rgba(0,0,0,0.1);">';
@@ -3800,8 +3800,13 @@ if (dateType === 'year' && yearVal) {
   summaryHTML += '</div>';
   if (Object.keys(caHours).length > 0 || Object.keys(caDays).length > 0) {
     summaryHTML += '<div style="margin-top:12px"><b>📊 Phân bố ca làm việc:</b>';
+    var order = ['Ca 1', 'Ca 2', 'Ca 3', 'HC', '1/2 Ca', 'Nghỉ'];
     var sortedCas = Object.keys(caHours).sort(function(a, b) {
-      return caHours[b] - caHours[a];
+      var orderA = order.indexOf(a);
+      var orderB = order.indexOf(b);
+      if (orderA === -1) orderA = 99;
+      if (orderB === -1) orderB = 99;
+      return orderA - orderB;
     });
     for (var i = 0; i < sortedCas.length; i++) {
       var ca = sortedCas[i];
@@ -3813,8 +3818,13 @@ if (dateType === 'year' && yearVal) {
       var congDisplay = cong % 1 === 0 ? cong.toFixed(0) : cong.toFixed(2);
       summaryHTML += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #ebcfc6ff;"><span style="min-width:60px;font-size:13px;font-weight:500;">' + ca + '</span><div style="flex:1;background:#f1f5f9;border-radius:10px;height:16px;overflow:hidden;"><div style="background:linear-gradient(90deg, ' + caColor + ', ' + caColor + 'cc);height:100%;width:' + barWidth + '%;border-radius:10px;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;"><span style="color:white;font-size:11px;font-weight:700;">' + caHours[ca] + ' giờ</span></div></div><span style="font-weight:600;font-size:13px;min-width:120px;">' + congDisplay + ' công (' + percent + '%)</span></div>';
     }
+    var order2 = ['Ca 1', 'Ca 2', 'Ca 3', 'HC', '1/2 Ca', 'Nghỉ'];
     var sortedDays = Object.keys(caDays).sort(function(a, b) {
-      return caDays[b] - caDays[a];
+      var orderA = order2.indexOf(a);
+      var orderB = order2.indexOf(b);
+      if (orderA === -1) orderA = 99;
+      if (orderB === -1) orderB = 99;
+      return orderA - orderB;
     });
     for (var j = 0; j < sortedDays.length; j++) {
       var caDay = sortedDays[j];
@@ -5397,4 +5407,60 @@ window.triggerPairSearch = function() {
     
     // Gọi thống kê
     showPairRanking();
+};
+
+window.showShiftDetail = function(empName, shiftName, monthVal) {
+    var records = L(REC_KEY, []);
+    
+    var empRecords = records.filter(function(r) {
+        var rShiftName = r.shift ? r.shift.split('(')[0].trim() : '';
+        return cleanEmployeeName(r.employee) === empName && rShiftName === shiftName;
+    });
+    
+    if (monthVal) {
+        empRecords = empRecords.filter(function(r) {
+            return r.date.startsWith(monthVal);
+        });
+    }
+    
+    if (empRecords.length === 0) {
+        showAlert('⚠️ Không có bản ghi nào!');
+        return;
+    }
+    
+    empRecords.sort(function(a, b) { return a.date.localeCompare(b.date); });
+    
+    var monthDisplay = monthVal ? ' - Tháng ' + monthVal.split('-')[1] + '/' + monthVal.split('-')[0] : '';
+    
+    // 👉 Dùng MODAL thay vì chèn xuống cuối
+    var html = '<div id="shiftDetailModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;" onclick="if(event.target===this)this.remove()">';
+    html += '<div style="background:white; border-radius:12px; max-width:800px; width:100%; max-height:80vh; overflow-y:auto; padding:20px;">';
+    html += '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">';
+    html += '<h4 style="margin:0;">👤 ' + empName + ' - ' + shiftName + monthDisplay + ' (' + empRecords.length + ' ngày)</h4>';
+    html += '<button onclick="document.getElementById(\'shiftDetailModal\').remove()" style="background:#ef4444; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer;">✕ Đóng</button>';
+    html += '</div>';
+    
+    html += '<table class="stats-table-compact">';
+    html += '<tr><th>STT</th><th>Ngày</th><th>Ca</th><th>Công đoạn</th><th>Ghi chú</th></tr>';
+    
+    empRecords.forEach(function(r, idx) {
+        var tasks = (r.tasks || []).map(function(t) { return t.task; }).join(', ') || '-';
+        var shiftDisplay = r.shift ? r.shift.split('(')[0].trim() : '-';
+        html += '<tr>';
+        html += '<td>' + (idx + 1) + '</td>';
+        html += '<td>' + formatDate(r.date) + '</td>';
+        html += '<td><span class="shift-badge ' + getShiftColorClass(shiftDisplay) + '">' + shiftDisplay + '</span></td>';
+        html += '<td>' + escHtml(tasks) + '</td>';
+        html += '<td>' + escHtml(r.note || '-') + '</td>';
+        html += '</tr>';
+    });
+    
+    html += '</table></div></div>';
+    
+    // Xóa modal cũ nếu có
+    var oldModal = document.getElementById('shiftDetailModal');
+    if (oldModal) oldModal.remove();
+    
+    // Thêm modal mới
+    document.body.insertAdjacentHTML('beforeend', html);
 };
