@@ -2563,17 +2563,26 @@ function generateInsights(records) {
 
 // ==================== SHIFT RANKING FUNCTIONS ====================
 window.loadShiftRanking = async function() {
-  var monthVal = document.getElementById('shiftDetailMonth')?.value;
-  if (!monthVal) { showAlert('⚠️ Vui lòng chọn tháng!', 'Thiếu thông tin'); return; }
-   // 👉 KIỂM TRA VÀ TẢI DỮ LIỆU NẾU CHƯA CÓ
+    var monthVal = document.getElementById('shiftDetailMonth')?.value;
+    if (!monthVal) { showAlert('⚠️ Vui lòng chọn tháng!', 'Thiếu thông tin'); return; }
+    
+    var selectedShifts = [];
+    document.querySelectorAll('.shift-checkbox:checked').forEach(function(cb) { selectedShifts.push(cb.value); });
+    if (selectedShifts.length === 0) { showAlert('⚠️ Vui lòng chọn ít nhất 1 ca!', 'Thiếu thông tin'); return; }
+    
+    // 👉 KIỂM TRA VÀ TẢI DỮ LIỆU NẾU CHƯA CÓ (chỉ tải khi bấm nút)
     var isFullyLoaded = localStorage.getItem('is_fully_loaded') === 'true';
     if (!isFullyLoaded) {
-        showAlert('⏳ Đang tải dữ liệu tháng ' + monthVal + ', vui lòng đợi...');
-        await fetchRecordsByTime(monthVal);
-    }
-  var selectedShifts = [];
-  document.querySelectorAll('.shift-checkbox:checked').forEach(function(cb) { selectedShifts.push(cb.value); });
-  if (selectedShifts.length === 0) { showAlert('⚠️ Vui lòng chọn ít nhất 1 ca!', 'Thiếu thông tin'); return; }
+        showAlert('⏳ Hệ thống đang tải dữ liệu tháng ' + monthVal + ', vui lòng đợi trong giây lát...');
+        // Tải toàn bộ 1 lần
+        var snapshot = await db.ref('chamcong/records').once('value');
+        var data = snapshot.val();
+        if (data) {
+            var allRecs = Array.isArray(data) ? data : Object.values(data);
+            localStorage.setItem('r', JSON.stringify(allRecs));
+            localStorage.setItem('is_fully_loaded', 'true');
+        }
+    } 
   var allRecords = L(REC_KEY, []);
   var filtered = allRecords.filter(function(r) { return r.date.startsWith(monthVal); });
   if (filtered.length === 0) {
@@ -4442,18 +4451,24 @@ function init() {
                     localStorage.setItem('g', JSON.stringify(gArr));
                 }
                 if (data.records) {
-                var allRecs = Array.isArray(data.records) ? data.records : Object.values(data.records);
-                
-                // Sắp xếp để lấy những bản ghi mới nhất
-                allRecs.sort(function(a, b) { return b.date.localeCompare(a.date); });
-                
-                // 👉 CHỈ LẤY 200 BẢN GHI MỚI NHẤT
-                var recentRecs = allRecs.slice(0, 200);
-                
-                localStorage.setItem('r', JSON.stringify(recentRecs));
-                console.log('✅ Firebase: Chỉ tải 200 bản ghi mới nhất (tiết kiệm dung lượng)');
-                }
-                
+    // 👉 KIỂM TRA: Nếu đã bấm "Tải toàn bộ" rồi thì KHÔNG cắt 200 bản ghi nữa
+                      var isFullyLoaded = localStorage.getItem('is_fully_loaded') === 'true';
+                      
+                      if (isFullyLoaded) {
+                          // Nếu đã tải toàn bộ, lấy hết dữ liệu
+                          var allRecs = Array.isArray(data.records) ? data.records : Object.values(data.records);
+                          localStorage.setItem('r', JSON.stringify(allRecs));
+                          console.log('✅ Đã tải toàn bộ từ bộ nhớ đệm: ' + allRecs.length + ' bản ghi');
+                      } else {
+                          // Nếu chưa tải toàn bộ, chỉ lấy 200 bản ghi mới nhất
+                          var allRecs = Array.isArray(data.records) ? data.records : Object.values(data.records);
+                          allRecs.sort(function(a, b) { return b.date.localeCompare(a.date); });
+                          var recentRecs = allRecs.slice(0, 200);
+                          localStorage.setItem('r', JSON.stringify(recentRecs));
+                          console.log('✅ Chỉ tải 200 bản ghi mới nhất (tiết kiệm dung lượng)');
+                      }
+                  }
+
                 statusDiv.style.background = '#10b981'; // Màu xanh lá
                 statusDiv.textContent = '✅ Đã tải xong dữ liệu từ Firebase!';
                 setTimeout(function() { statusDiv.remove(); }, 3000);
@@ -5157,19 +5172,39 @@ window.scrollToTop = function() {
 // Load toàn bộ dữ liệu khi cần
 window.loadAllRecordsFromFirebase = async function() {
     try {
+        showAlert('⏳ Đang tải TOÀN BỘ dữ liệu từ Firebase (vui lòng đợi)...');
+        
+        // Xóa cờ tải 200 bản ghi cũ
+        localStorage.removeItem('is_fully_loaded');
+        
         var snapshot = await db.ref('chamcong/records').once('value');
         var data = snapshot.val();
         
         if (data) {
             var allRecs = Array.isArray(data) ? data : Object.values(data);
-            localStorage.setItem('r', JSON.stringify(allRecs));
             
+            // Lưu toàn bộ
+            localStorage.setItem('r', JSON.stringify(allRecs));
+            // Đánh dấu đã tải toàn bộ
+            localStorage.setItem('is_fully_loaded', 'true'); 
+            
+            // Render lại
             refreshAllUI();
-            showAlert('✅ Đã load toàn bộ ' + allRecs.length + ' bản ghi!');
+            if (typeof renderStatistics === 'function') renderStatistics();
+            if (typeof applyStatsFilters === 'function') applyStatsFilters();
+            
+            // Nếu đang ở tab Theo Ca thì load lại bảng xếp hạng
+            var shiftTab = document.getElementById('subTabShiftDetail');
+            if (shiftTab && shiftTab.style.display !== 'none' && typeof loadShiftRanking === 'function') {
+                loadShiftRanking();
+            }
+            
+            showAlert('✅ Đã tải TOÀN BỘ ' + allRecs.length + ' bản ghi! Bây giờ bạn có thể xem lại các tháng cũ.');
+            console.log('✅ Đã tải toàn bộ: ' + allRecs.length + ' bản ghi');
         }
     } catch(e) {
-        console.error('Lỗi load toàn bộ:', e);
-        showAlert('❌ Lỗi load dữ liệu!');
+        console.error('Lỗi:', e);
+        showAlert('❌ Lỗi tải toàn bộ: ' + e.message);
     }
 };
 
@@ -5574,3 +5609,36 @@ document.addEventListener('change', function(e) {
         }
     }
 });
+
+window.fetchRecordsByTime = async function(timeStr) {
+    if (!timeStr) return;
+    try {
+        console.log('⏳ Đang tải dữ liệu tháng: ' + timeStr);
+        
+        // Tải toàn bộ records từ Firebase
+        var snapshot = await db.ref('chamcong/records').once('value');
+        var data = snapshot.val();
+        
+        if (data) {
+            var allRecs = Array.isArray(data) ? data : Object.values(data);
+            // Lưu toàn bộ vào máy (để sau này lọc)
+            localStorage.setItem('r', JSON.stringify(allRecs));
+            localStorage.setItem('is_fully_loaded', 'true');
+            
+            console.log('✅ Đã tải toàn bộ ' + allRecs.length + ' bản ghi từ Firebase');
+            
+            // Vẽ lại giao diện
+            if (typeof refreshAllUI === 'function') refreshAllUI();
+            if (typeof renderStatistics === 'function') renderStatistics();
+            if (typeof applyStatsFilters === 'function') applyStatsFilters();
+            
+            // Nếu đang ở tab Theo Ca thì load lại bảng
+            var shiftTab = document.getElementById('subTabShiftDetail');
+            if (shiftTab && shiftTab.style.display !== 'none' && typeof loadShiftRanking === 'function') {
+                loadShiftRanking();
+            }
+        }
+    } catch(e) {
+        console.error('❌ Lỗi tải dữ liệu:', e);
+    }
+};
