@@ -4445,30 +4445,41 @@ function init() {
     if (empCount) empCount.textContent = emp.length + ' NV';
 
     // Tải dữ liệu từ Firebase (Tải toàn bộ 1 lần)
-    if (!isAdmin && typeof db !== 'undefined') {
-        db.ref('chamcong').once('value').then(function(snapshot) {
-            var data = snapshot.val();
-            if (data) {
-                if (data.employees) localStorage.setItem('e', JSON.stringify(data.employees));
-                if (data.groups) {
-                    var gArr = Array.isArray(data.groups) ? data.groups : Object.values(data.groups);
-                    localStorage.setItem('g', JSON.stringify(gArr));
-                }
-                if (data.records) {
-                    var allRecs = Array.isArray(data.records) ? data.records : Object.values(data.records);
-                    localStorage.setItem('r', JSON.stringify(allRecs));
-                    console.log('✅ Đã tải TOÀN BỘ ' + allRecs.length + ' bản ghi từ Firebase');
-                }
-                
-                // Render lại toàn bộ giao diện
-                refreshAllUI();
-                rEmp();
-                renderStatistics();
-            }
-        }).catch(function(e) {
-            console.error('❌ Lỗi Firebase: ' + e.message);
-        });
-    }
+  if (!isAdmin && typeof db !== 'undefined') {
+    // Chỉ tải dữ liệu của tháng hiện tại để không bị vượt hạn mức
+    var now = new Date();
+    var currentMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+    
+    // 1. Tải thông tin nhân viên và nhóm (dữ liệu này rất nhỏ, tải hết không sao)
+    db.ref('chamcong/employees').once('value').then(function(snap) {
+        if (snap.val()) localStorage.setItem('e', JSON.stringify(snap.val()));
+    });
+    db.ref('chamcong/groups').once('value').then(function(snap) {
+        if (snap.val()) {
+            var gArr = Array.isArray(snap.val()) ? snap.val() : Object.values(snap.val());
+            localStorage.setItem('g', JSON.stringify(gArr));
+        }
+    });
+
+    // 2. Chỉ tải bản ghi chấm công của tháng hiện tại
+    db.ref('chamcong/records').orderByChild('date').startAt(currentMonth + '-01').endAt(currentMonth + '-31').once('value').then(function(snapshot) {
+        var data = snapshot.val();
+        if (data) {
+            var allRecs = Array.isArray(data) ? data : Object.values(data);
+            localStorage.setItem('r', JSON.stringify(allRecs));
+            console.log('✅ Đã tải ' + allRecs.length + ' bản ghi của tháng ' + currentMonth);
+        } else {
+            localStorage.setItem('r', JSON.stringify([]));
+        }
+        
+        // Cập nhật giao diện sau khi tải xong
+        if (typeof refreshAllUI === 'function') refreshAllUI();
+        if (typeof rEmp === 'function') rEmp();
+        if (typeof renderStatistics === 'function') renderStatistics();
+    }).catch(function(e) {
+        console.error('Lỗi tải dữ liệu tháng: ', e);
+    });
+  }
 
     var attDate = document.getElementById('attDate');
     if (attDate) attDate.value = new Date().toISOString().split('T')[0];
