@@ -4450,24 +4450,11 @@ function init() {
                     var gArr = Array.isArray(data.groups) ? data.groups : Object.values(data.groups);
                     localStorage.setItem('g', JSON.stringify(gArr));
                 }
-                if (data.records) {
-    // 👉 KIỂM TRA: Nếu đã bấm "Tải toàn bộ" rồi thì KHÔNG cắt 200 bản ghi nữa
-                      var isFullyLoaded = localStorage.getItem('is_fully_loaded') === 'true';
-                      
-                      if (isFullyLoaded) {
-                          // Nếu đã tải toàn bộ, lấy hết dữ liệu
-                          var allRecs = Array.isArray(data.records) ? data.records : Object.values(data.records);
-                          localStorage.setItem('r', JSON.stringify(allRecs));
-                          console.log('✅ Đã tải toàn bộ từ bộ nhớ đệm: ' + allRecs.length + ' bản ghi');
-                      } else {
-                          // Nếu chưa tải toàn bộ, chỉ lấy 200 bản ghi mới nhất
-                          var allRecs = Array.isArray(data.records) ? data.records : Object.values(data.records);
-                          allRecs.sort(function(a, b) { return b.date.localeCompare(a.date); });
-                          var recentRecs = allRecs.slice(0, 200);
-                          localStorage.setItem('r', JSON.stringify(recentRecs));
-                          console.log('✅ Chỉ tải 200 bản ghi mới nhất (tiết kiệm dung lượng)');
-                      }
-                  }
+             if (data.records) {
+            var allRecs = Array.isArray(data.records) ? data.records : Object.values(data.records);
+            localStorage.setItem('r', JSON.stringify(allRecs));
+            console.log('✅ Đã tải TOÀN BỘ ' + allRecs.length + ' bản ghi từ Firebase');
+                }
 
                 statusDiv.style.background = '#10b981'; // Màu xanh lá
                 statusDiv.textContent = '✅ Đã tải xong dữ liệu từ Firebase!';
