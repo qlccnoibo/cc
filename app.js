@@ -2562,9 +2562,15 @@ function generateInsights(records) {
 }
 
 // ==================== SHIFT RANKING FUNCTIONS ====================
-window.loadShiftRanking = function() {
+window.loadShiftRanking = async function() {
   var monthVal = document.getElementById('shiftDetailMonth')?.value;
   if (!monthVal) { showAlert('⚠️ Vui lòng chọn tháng!', 'Thiếu thông tin'); return; }
+   // 👉 KIỂM TRA VÀ TẢI DỮ LIỆU NẾU CHƯA CÓ
+    var isFullyLoaded = localStorage.getItem('is_fully_loaded') === 'true';
+    if (!isFullyLoaded) {
+        showAlert('⏳ Đang tải dữ liệu tháng ' + monthVal + ', vui lòng đợi...');
+        await fetchRecordsByTime(monthVal);
+    }
   var selectedShifts = [];
   document.querySelectorAll('.shift-checkbox:checked').forEach(function(cb) { selectedShifts.push(cb.value); });
   if (selectedShifts.length === 0) { showAlert('⚠️ Vui lòng chọn ít nhất 1 ca!', 'Thiếu thông tin'); return; }
@@ -4436,8 +4442,16 @@ function init() {
                     localStorage.setItem('g', JSON.stringify(gArr));
                 }
                 if (data.records) {
-                    var rArr = Array.isArray(data.records) ? data.records : Object.values(data.records);
-                    localStorage.setItem('r', JSON.stringify(rArr));
+                var allRecs = Array.isArray(data.records) ? data.records : Object.values(data.records);
+                
+                // Sắp xếp để lấy những bản ghi mới nhất
+                allRecs.sort(function(a, b) { return b.date.localeCompare(a.date); });
+                
+                // 👉 CHỈ LẤY 200 BẢN GHI MỚI NHẤT
+                var recentRecs = allRecs.slice(0, 200);
+                
+                localStorage.setItem('r', JSON.stringify(recentRecs));
+                console.log('✅ Firebase: Chỉ tải 200 bản ghi mới nhất (tiết kiệm dung lượng)');
                 }
                 
                 statusDiv.style.background = '#10b981'; // Màu xanh lá
@@ -5506,3 +5520,57 @@ window.testFirebaseData = function() {
         showAlert('❌ LỖI KẾT NỐI FIREBASE:\n' + error.message);
     });
 };
+
+window.fetchRecordsByTime = async function(timeStr) {
+    if (!timeStr) return;
+    
+    // Kiểm tra xem máy đã tải toàn bộ dữ liệu chưa, nếu tải rồi thì không tải lại để tiết kiệm dung lượng
+    var isFullyLoaded = localStorage.getItem('is_fully_loaded') === 'true';
+    if (isFullyLoaded) {
+        return; 
+    }
+    
+    try {
+        console.log('⏳ Đang tải dữ liệu cho: ' + timeStr);
+        
+        var snapshot = await db.ref('chamcong/records').once('value');
+        var data = snapshot.val();
+        
+        if (data) {
+            var allRecs = Array.isArray(data) ? data : Object.values(data);
+            localStorage.setItem('r', JSON.stringify(allRecs));
+            localStorage.setItem('is_fully_loaded', 'true'); // Đánh dấu đã tải xong toàn bộ
+            
+            console.log('✅ Đã tải toàn bộ ' + allRecs.length + ' bản ghi từ Firebase');
+            
+            // Vẽ lại toàn bộ giao diện
+            if (typeof refreshAllUI === 'function') refreshAllUI();
+            if (typeof renderStatistics === 'function') renderStatistics();
+            if (typeof applyStatsFilters === 'function') applyStatsFilters();
+            
+            // 👉 QUAN TRỌNG: Vẽ lại bảng xếp hạng ca nếu đang ở tab Theo Ca
+            if (typeof loadShiftRanking === 'function' && document.getElementById('subTabShiftDetail').style.display !== 'none') {
+                loadShiftRanking();
+            }
+        }
+    } catch(e) {
+        console.error('❌ Lỗi tải dữ liệu:', e);
+        if (typeof showAlert === 'function') {
+            showAlert('⚠️ Lỗi tải dữ liệu: ' + e.message);
+        }
+    }
+};
+
+// Tự động gắn sự kiện tải dữ liệu cho TẤT CẢ các ô chọn tháng
+document.addEventListener('change', function(e) {
+    if (e.target && e.target.type === 'month') {
+        var selectedMonth = e.target.value;
+        if (selectedMonth) {
+            console.log('Người dùng chọn tháng: ' + selectedMonth);
+            // Gọi hàm tải dữ liệu từ Firebase
+            if (typeof fetchRecordsByTime === 'function') {
+                fetchRecordsByTime(selectedMonth);
+            }
+        }
+    }
+});
