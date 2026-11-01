@@ -2187,24 +2187,20 @@ function applyStatsFilters() {
   renderHeatmap(filtered);
   renderCharts(filtered);
 
-// Chỉ hiển thị ngày mới nhất KHI không có bộ lọc ngày
-var hasDateFilter = heatmapRange.start || heatmapRange.end;
+  // Chỉ hiển thị ngày mới nhất KHI đang ở chế độ "Tất cả" và không có bộ lọc ngày
+  var periodBtn = document.querySelector('.filter-period-btn.active');
+  var currentPeriod = periodBtn ? periodBtn.getAttribute('data-period') : 'all';
+  var hasDateFilter = heatmapRange.start || heatmapRange.end;
 
-if (!hasDateFilter && filtered.length > 0) {
-    var latestDate = filtered.reduce(function(max, r) {
-        return r.date > max ? r.date : max;
-    }, filtered[0].date);
-    
-    filtered = filtered.filter(function(r) { return r.date === latestDate; });
-}
-  renderStatsTable(filtered);
-
-  var insightBox = document.querySelector('#subTabDashboard .insight-box');
-  if (insightBox) {
-    var newInsight = generateInsights(filtered);
-    if (newInsight) insightBox.outerHTML = newInsight;
-    else insightBox.outerHTML = '';
+  if (currentPeriod === 'all' && !hasDateFilter && filtered.length > 0) {
+      var latestDate = filtered.reduce(function(max, r) {
+          return r.date > max ? r.date : max;
+      }, filtered[0].date);
+      
+      filtered = filtered.filter(function(r) { return r.date === latestDate; });
   }
+  
+  renderStatsTable(filtered);
 }
 
 // ==================== HEATMAP FUNCTIONS ====================
@@ -2335,6 +2331,17 @@ function renderCharts(records) {
 
 // ==================== STATS TABLE FUNCTIONS ====================
 function renderStatsTable(records) {
+  // 👉 Lọc nhân viên ẩn
+   if (!isAdmin) {
+        var hiddenNames = [];
+        getHiddenEmployees().forEach(function(id) {
+            var e = emp.find(function(x) { return x.id === id; });
+            if (e) hiddenNames.push(cleanEmployeeName(e.name));
+        });
+        records = records.filter(function(r) {
+            return hiddenNames.indexOf(cleanEmployeeName(r.employee)) === -1;
+        });
+    }
   var container = document.getElementById('statsTableContainer');
   if (!container) return;
   if (!records.length) {
@@ -2577,6 +2584,15 @@ window.loadShiftRanking = function() {
     });
   });
   filtered.forEach(function(r) {
+     if (!isAdmin) {
+        var hiddenNames = [];
+        getHiddenEmployees().forEach(function(id) {
+            var e = emp.find(function(x) { return x.id === id; });
+            if (e) hiddenNames.push(cleanEmployeeName(e.name));
+        });
+        if (hiddenNames.indexOf(cleanEmployeeName(r.employee)) > -1) return;
+    }
+
     var shiftName = r.shift ? r.shift.split('(')[0].trim() : 'Khác';
     var empName = cleanEmployeeName(r.employee);
     if (!shiftStats[shiftName]) return;
@@ -5463,4 +5479,41 @@ window.showShiftDetail = function(empName, shiftName, monthVal) {
     
     // Thêm modal mới
     document.body.insertAdjacentHTML('beforeend', html);
+};
+
+function getHiddenNames() {
+    var hiddenEmps = JSON.parse(localStorage.getItem('hidden_emps') || '[]');
+    var names = [];
+    emp.forEach(function(e) {
+        if (hiddenEmps.indexOf(e.id) > -1) {
+            names.push(cleanEmployeeName(e.name));
+        }
+    });
+    return names;
+}
+
+function isHiddenEmployee(empName) {
+    if (isAdmin) return false;
+    return getHiddenNames().indexOf(cleanEmployeeName(empName)) > -1;
+}
+
+window.checkData = function() {
+    var records = JSON.parse(localStorage.getItem('r') || '[]');
+    var employees = JSON.parse(localStorage.getItem('e') || '[]');
+    var groups = JSON.parse(localStorage.getItem('g') || '[]');
+    
+    var msg = '📊 Dữ liệu trong máy:\n\n';
+    msg += '👥 Nhân viên: ' + employees.length + '\n';
+    msg += '📋 Nhóm công việc: ' + groups.length + '\n';
+    msg += '📝 Bản ghi chấm công: ' + records.length + '\n\n';
+    
+    if (records.length > 0) {
+        msg += '📅 Bản ghi đầu tiên:\n';
+        msg += 'Ngày: ' + records[0].date + '\n';
+        msg += 'Nhân viên: ' + records[0].employee + '\n';
+    } else {
+        msg += '⚠️ Chưa có bản ghi nào trong máy!';
+    }
+    
+    showAlert(msg, 'Kiểm tra dữ liệu');
 };
