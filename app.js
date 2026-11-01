@@ -4399,7 +4399,6 @@ function updateClock() {
 
 // ==================== INIT ====================
 function init() {
-    console.log("🔥 ĐÃ CẬP NHẬT CODE MỚI - Phiên bản 1/11/2026");
     if (!Date.prototype._toISOString) {
         Date.prototype._toISOString = Date.prototype.toISOString;
         Date.prototype.toISOString = function() {
@@ -4411,88 +4410,62 @@ function init() {
     
     checkAdmin();
     
-    // 👉 1. HIỆN NGAY dữ liệu cũ từ localStorage (không chờ)
-    rShifts();
-    rGFull();
-    rGCompact();
-    rEmp();
-    rShiftList();
-    renderAudit();
-    renderStatistics();
-    initAutocomplete();
-    renderSelectedEmployees();
-    initNoteCharCount();
-    renderMissingEmployees();
+    // 1. Hiển thị ngay dữ liệu cũ trong máy (nếu có) để không bị trắng trang
+    rShifts(); rGFull(); rGCompact(); rEmp(); rShiftList();
+    renderAudit(); renderStatistics(); initAutocomplete();
+    renderSelectedEmployees(); initNoteCharCount(); renderMissingEmployees();
+    
     var empCount = document.getElementById('empCount');
     if (empCount) empCount.textContent = emp.length + ' NV';
-    
-    // 👉 2. LOAD NGẦM từ Firebase (chỉ nhân viên)
+
+    // 2. Tải dữ liệu từ Firebase
     if (!isAdmin && typeof db !== 'undefined') {
+        // Hiện thông báo debug ở góc màn hình
+        var statusDiv = document.createElement('div');
+        statusDiv.id = 'fbStatus';
+        statusDiv.style.cssText = 'position:fixed; top:0; left:0; right:0; background:#3b82f6; color:white; padding:8px; font-size:12px; z-index:99999; text-align:center; font-weight:bold;';
+        statusDiv.textContent = '⏳ Đang tải dữ liệu từ Firebase...';
+        document.body.appendChild(statusDiv);
+
         db.ref('chamcong').once('value').then(function(snapshot) {
             var data = snapshot.val();
-            if (!data) return;
-            
-            // Employees
-            if (data.employees) {
-                localStorage.setItem('e', JSON.stringify(data.employees));
+            if (data) {
+                if (data.employees) localStorage.setItem('e', JSON.stringify(data.employees));
+                if (data.groups) {
+                    var gArr = Array.isArray(data.groups) ? data.groups : Object.values(data.groups);
+                    localStorage.setItem('g', JSON.stringify(gArr));
+                }
+                if (data.records) {
+                    var rArr = Array.isArray(data.records) ? data.records : Object.values(data.records);
+                    localStorage.setItem('r', JSON.stringify(rArr));
+                }
+                
+                statusDiv.style.background = '#10b981'; // Màu xanh lá
+                statusDiv.textContent = '✅ Đã tải xong dữ liệu từ Firebase!';
+                setTimeout(function() { statusDiv.remove(); }, 3000);
+                
+                // Render lại toàn bộ giao diện
+                refreshAllUI();
+                rEmp();
+                renderStatistics();
+            } else {
+                statusDiv.style.background = '#ef4444'; // Màu đỏ
+                statusDiv.textContent = '❌ Firebase trống hoặc lỗi dữ liệu!';
             }
-            
-            // Groups
-            if (data.groups) {
-                var groupsArr = Array.isArray(data.groups) ? data.groups : Object.values(data.groups);
-                localStorage.setItem('g', JSON.stringify(groupsArr));
-            }
-            
-            // Records - chỉ 3 tháng gần nhất
-            if (data.records) {
-                var allRecs = Array.isArray(data.records) ? data.records : Object.values(data.records);
-                var cutoff = new Date();
-                cutoff.setMonth(cutoff.getMonth() - 3);
-                var cutoffStr = cutoff.toISOString().split('T')[0];
-                var recentRecs = allRecs.filter(function(r) { return r.date >= cutoffStr; });
-                localStorage.setItem('r', JSON.stringify(recentRecs));
-                console.log('✅ Firebase: ' + recentRecs.length + '/' + allRecs.length + ' bản ghi (3 tháng)');
-            }
-            
-            // Cập nhật giao diện
-            refreshAllUI();
-            console.log('✅ Đã đồng bộ từ Firebase');
         }).catch(function(e) {
-            console.error('❌ Lỗi Firebase:', e);
+            statusDiv.style.background = '#ef4444';
+            statusDiv.textContent = '❌ Lỗi Firebase: ' + e.message;
+            console.error(e);
         });
     }
-    
-    // 👉 3. GitHub Token (nếu có)
-    var savedToken = localStorage.getItem('github_token');
-    if (savedToken && savedToken.length > 0) {
-        GITHUB_TOKEN = savedToken;
-        console.log('🔐 Đã load GitHub Token');
-    }
-    
-    // 👉 4. Load hidden employees
-    loadHiddenEmployeesFast().then(function() {
-        rEmp();
-        refreshAllAutocompletes();
-    });
-    
-    // 👉 5. Set ngày mặc định
+
+    // 3. Các cài đặt khác
     var attDate = document.getElementById('attDate');
     if (attDate) attDate.value = new Date().toISOString().split('T')[0];
     
-    // 👉 6. Clock
     updateClock();
     setInterval(updateClock, 1000);
-    
-    // 👉 7. Modal events
     initModalAutocomplete();
-    document.getElementById('editGroupModal').addEventListener('click', function(e) {
-        if (e.target === this) closeEditModal();
-    });
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape' && document.getElementById('editGroupModal').classList.contains('show')) {
-            closeEditModal();
-        }
-    });
 }
 
 // ==================== EVENT BINDINGS ====================
