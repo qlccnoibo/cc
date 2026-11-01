@@ -2561,117 +2561,119 @@ function generateInsights(records) {
   return '<div class="insight-box"><div class="insight-icon">💡</div><div class="insight-text"><strong>📊 Phân tích:</strong> 📅 Ngày đông nhất: <strong>' + busiestDay + '</strong> (' + busiestCount + ' bản ghi) | 🍚 Tỉ lệ ăn cơm: <strong>' + eatPercent + '%</strong></div></div>';
 }
 
-// ==================== SHIFT RANKING FUNCTIONS ====================
-window.loadShiftRanking = async function() {
+window.loadShiftRanking = function() {
     var monthVal = document.getElementById('shiftDetailMonth')?.value;
     if (!monthVal) { showAlert('⚠️ Vui lòng chọn tháng!', 'Thiếu thông tin'); return; }
     
     var selectedShifts = [];
     document.querySelectorAll('.shift-checkbox:checked').forEach(function(cb) { selectedShifts.push(cb.value); });
-    if (selectedShifts.length === 0) { showAlert('⚠️ Vui lòng chọn ít nhất 1 ca!', 'Thiếu thông tin'); return; }
+    if (selectedShifts.length === 0) { showAlert('⚠️ Vui lòng chọn ít nhất 1 ca!'); return; }
+
+    var allRecords = L(REC_KEY, []);
+    var filtered = allRecords.filter(function(r) { return r.date.startsWith(monthVal); });
     
-    // 👉 KIỂM TRA VÀ TẢI DỮ LIỆU NẾU CHƯA CÓ (chỉ tải khi bấm nút)
-    var isFullyLoaded = localStorage.getItem('is_fully_loaded') === 'true';
-    if (!isFullyLoaded) {
-        showAlert('⏳ Hệ thống đang tải dữ liệu tháng ' + monthVal + ', vui lòng đợi trong giây lát...');
-        // Tải toàn bộ 1 lần
-        var snapshot = await db.ref('chamcong/records').once('value');
-        var data = snapshot.val();
-        if (data) {
-            var allRecs = Array.isArray(data) ? data : Object.values(data);
-            localStorage.setItem('r', JSON.stringify(allRecs));
-            localStorage.setItem('is_fully_loaded', 'true');
-        }
-    } 
-  var allRecords = L(REC_KEY, []);
-  var filtered = allRecords.filter(function(r) { return r.date.startsWith(monthVal); });
-  if (filtered.length === 0) {
-    document.getElementById('shiftRankingResult').innerHTML = '<div class="muted" style="text-align:center;padding:40px;">📊 Không có dữ liệu trong tháng này</div>';
-    return;
-  }
-  var shiftStats = {};
-  selectedShifts.forEach(function(shiftName) {
-    var shiftInfo = shifts.find(function(s) { return s.name === shiftName; });
-    shiftStats[shiftName] = { name: shiftName, icon: shiftInfo ? shiftInfo.icon : '🔹', time: shiftInfo ? shiftInfo.time : '', employees: {} };
-    emp.forEach(function(e) {
-      var cleanName = cleanEmployeeName(e.name);
-      shiftStats[shiftName].employees[cleanName] = 0;
-    });
-  });
-  filtered.forEach(function(r) {
-     if (!isAdmin) {
-        var hiddenNames = [];
+    if (filtered.length === 0) {
+        document.getElementById('shiftRankingResult').innerHTML = '<div class="muted" style="text-align:center;padding:40px;">📊 Không có dữ liệu trong tháng này</div>';
+        return;
+    }
+    
+    // 👉 LẤY DANH SÁCH NHÂN VIÊN BỊ ẨN (Chỉ lấy 1 lần ở đây thôi)
+    var hiddenNames = [];
+    if (!isAdmin) {
         getHiddenEmployees().forEach(function(id) {
             var e = emp.find(function(x) { return x.id === id; });
             if (e) hiddenNames.push(cleanEmployeeName(e.name));
         });
-        if (hiddenNames.indexOf(cleanEmployeeName(r.employee)) > -1) return;
     }
 
-    var shiftName = r.shift ? r.shift.split('(')[0].trim() : 'Khác';
-    var empName = cleanEmployeeName(r.employee);
-    if (!shiftStats[shiftName]) return;
-    if (!shiftStats[shiftName].employees[empName]) shiftStats[shiftName].employees[empName] = 0;
-    shiftStats[shiftName].employees[empName]++;
-  });
-  var html = '';
-  var colors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#ef4444', '#14b8a6'];
-  var colorIndex = 0;
-  var sortedShifts = Object.keys(shiftStats).sort(function(a, b) { return getShiftOrder(a) - getShiftOrder(b); });
-  sortedShifts.forEach(function(shiftName) {
-    var shiftData = shiftStats[shiftName];
-    var employees = shiftData.employees;
-    var ranking = Object.entries(employees).sort(function(a, b) { return b[1] - a[1]; });
-    var totalCount = ranking.reduce(function(sum, item) { return sum + item[1]; }, 0);
-    var maxCount = ranking.length > 0 ? ranking[0][1] : 1;
-    var color = colors[colorIndex % colors.length];
-    colorIndex++;
-    html += '<div class="shift-ranking-card" style="margin-bottom:20px; background:white; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.06); overflow:hidden;">';
-    html += '<div style="background:linear-gradient(135deg, ' + color + '15, ' + color + '05); border-left:4px solid ' + color + '; padding:15px 20px;">';
-    html += '<div style="display:flex; align-items:center; gap:10px;">';
-    html += '<span style="font-size:28px;">' + (shiftData.icon || '🔹') + '</span>';
-    html += '<div style="flex:1;"><h4 style="margin:0; font-size:18px; font-weight:700; color:#1e293b;">' + shiftData.name + '</h4><span style="font-size:13px; color:#64748b;">' + shiftData.time + '</span></div>';
-    html += '<span class="shift-badge ' + getShiftColorClass(shiftData.name) + '" style="font-size:14px; padding:6px 14px;">' + totalCount + ' lượt</span>';
-    html += '</div></div>';
-    html += '<div style="padding:15px 20px;">';
-    if (ranking.length === 0) {
-      html += '<div style="text-align:center; padding:20px; color:#94a3b8; font-style:italic;">📭 Chưa có nhân viên nào làm ca này trong tháng</div>';
-    } else {
-      html += '<div class="shift-ranking-list">';
-      ranking.forEach(function(item, idx) {
-        var empName = item[0],
-          count = item[1],
-          percentage = Math.round((count / maxCount) * 100);
-        var bgColor = 'white',
-          borderColor = '#e5e7eb',
-          fontWeight = '400',
-          nameColor = '#1e293b';
-        if (idx === 0) { bgColor = '#fef3c7';
-          borderColor = '#f59e0b';
-          fontWeight = '700';
-          nameColor = '#92400e'; } else if (idx === 1) { bgColor = '#f1f5f9';
-          borderColor = '#94a3b8';
-          fontWeight = '600'; } else if (idx === 2) { bgColor = '#fef2f2';
-          borderColor = '#fca5a5';
-          fontWeight = '600';
-          nameColor = '#991b1b'; }
-        var rankIcon = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : '<span style="color:#64748b; font-weight:600; font-size:14px; min-width:30px; display:inline-block;">' + (idx + 1) + '.</span>';
-        var barColors = { 0: '#2563eb', 1: '#059669', 2: '#d97706', 'default': '#6366f1' };
-        var barColor = idx === 0 ? barColors[0] : idx === 1 ? barColors[1] : idx === 2 ? barColors[2] : barColors['default'];
-        var barGradient = idx === 0 ? 'linear-gradient(90deg, #1d4ed8, #3b82f6)' : idx === 1 ? 'linear-gradient(90deg, #047857, #10b981)' : idx === 2 ? 'linear-gradient(90deg, #b45309, #f59e0b)' : 'linear-gradient(90deg, #4f46e5, #818cf8)';
-        html += '<div onclick="showShiftDetail(\'' + empName.replace(/'/g, "\\'") + '\', \'' + shiftName.replace(/'/g, "\\'") + '\', \'' + monthVal + '\')" style="display:flex; align-items:center; gap:12px; padding:14px 16px; background:' + bgColor + '; border:2px solid ' + borderColor + '; border-radius:10px; margin-bottom:8px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); cursor:pointer;">';
-        html += '<div style="width:35px; text-align:center; font-size:20px;">' + rankIcon + '</div>';
-        html += '<div style="flex:1; font-weight:' + fontWeight + '; font-size:15px; color:' + nameColor + ';">' + empName + '</div>';
-        html += '<div style="flex:2; background:#e5e7eb; border-radius:12px; height:10px; overflow:hidden; box-shadow:inset 0 2px 4px rgba(0,0,0,0.1);">';
-        html += '<div style="background:' + barGradient + '; height:100%; width:' + percentage + '%; border-radius:12px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div></div>';
-        html += '<div style="min-width:50px; text-align:right; font-weight:600; font-size:16px; color:' + barColor + ';">' + count + ' ngày</div>';
-        html += '</div>';
-      });
-      html += '</div>';
-    }
-    html += '</div></div>';
-  });
-  document.getElementById('shiftRankingResult').innerHTML = html || '<div class="muted" style="text-align:center;padding:40px;">📊 Không có dữ liệu trong tháng này cho các ca đã chọn</div>';
+    var shiftStats = {};
+    selectedShifts.forEach(function(shiftName) {
+        var shiftInfo = shifts.find(function(s) { return s.name === shiftName; });
+        shiftStats[shiftName] = { name: shiftName, icon: shiftInfo ? shiftInfo.icon : '🔹', time: shiftInfo ? shiftInfo.time : '', employees: {} };
+        emp.forEach(function(e) {
+            var cleanName = cleanEmployeeName(e.name);
+            // Nếu nhân viên bị ẩn thì không đưa vào danh sách tính toán
+            if (hiddenNames.indexOf(cleanName) === -1) {
+                shiftStats[shiftName].employees[cleanName] = 0;
+            }
+        });
+    });
+    
+    filtered.forEach(function(r) {
+        var empName = cleanEmployeeName(r.employee);
+        
+        // 👉 BỎ QUA NẾU NHÂN VIÊN BỊ ẨN
+        if (hiddenNames.indexOf(empName) > -1) return;
+
+        var shiftName = r.shift ? r.shift.split('(')[0].trim() : 'Khác';
+        if (!shiftStats[shiftName]) return;
+        if (!shiftStats[shiftName].employees[empName]) shiftStats[shiftName].employees[empName] = 0;
+        shiftStats[shiftName].employees[empName]++;
+    });
+    
+    var html = '';
+    var colors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#ef4444', '#14b8a6'];
+    var colorIndex = 0;
+    var sortedShifts = Object.keys(shiftStats).sort(function(a, b) { return getShiftOrder(a) - getShiftOrder(b); });
+    
+    sortedShifts.forEach(function(shiftName) {
+        var shiftData = shiftStats[shiftName];
+        var employees = shiftData.employees;
+        var ranking = Object.entries(employees).sort(function(a, b) { return b[1] - a[1]; });
+        var totalCount = ranking.reduce(function(sum, item) { return sum + item[1]; }, 0);
+        var maxCount = ranking.length > 0 ? ranking[0][1] : 1;
+        var color = colors[colorIndex % colors.length];
+        colorIndex++;
+        
+        html += '<div class="shift-ranking-card" style="margin-bottom:20px; background:white; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.06); overflow:hidden;">';
+        html += '<div style="background:linear-gradient(135deg, ' + color + '15, ' + color + '05); border-left:4px solid ' + color + '; padding:15px 20px;">';
+        html += '<div style="display:flex; align-items:center; gap:10px;">';
+        html += '<span style="font-size:28px;">' + (shiftData.icon || '🔹') + '</span>';
+        html += '<div style="flex:1;"><h4 style="margin:0; font-size:18px; font-weight:700; color:#1e293b;">' + shiftData.name + '</h4><span style="font-size:13px; color:#64748b;">' + shiftData.time + '</span></div>';
+        html += '<span class="shift-badge ' + getShiftColorClass(shiftData.name) + '" style="font-size:14px; padding:6px 14px;">' + totalCount + ' lượt</span>';
+        html += '</div></div>';
+        html += '<div style="padding:15px 20px;">';
+        
+        if (ranking.length === 0) {
+            html += '<div style="text-align:center; padding:20px; color:#94a3b8; font-style:italic;">📭 Chưa có nhân viên nào làm ca này trong tháng</div>';
+        } else {
+            html += '<div class="shift-ranking-list">';
+            ranking.forEach(function(item, idx) {
+                var empName = item[0],
+                    count = item[1],
+                    percentage = Math.round((count / maxCount) * 100);
+                var bgColor = 'white',
+                    borderColor = '#e5e7eb',
+                    fontWeight = '400',
+                    nameColor = '#1e293b';
+                if (idx === 0) { bgColor = '#fef3c7';
+                    borderColor = '#f59e0b';
+                    fontWeight = '700';
+                    nameColor = '#92400e'; } else if (idx === 1) { bgColor = '#f1f5f9';
+                    borderColor = '#94a3b8';
+                    fontWeight = '600'; } else if (idx === 2) { bgColor = '#fef2f2';
+                    borderColor = '#fca5a5';
+                    fontWeight = '600';
+                    nameColor = '#991b1b'; }
+                var rankIcon = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : '<span style="color:#64748b; font-weight:600; font-size:14px; min-width:30px; display:inline-block;">' + (idx + 1) + '.</span>';
+                var barColors = { 0: '#2563eb', 1: '#059669', 2: '#d97706', 'default': '#6366f1' };
+                var barColor = idx === 0 ? barColors[0] : idx === 1 ? barColors[1] : idx === 2 ? barColors[2] : barColors['default'];
+                var barGradient = idx === 0 ? 'linear-gradient(90deg, #1d4ed8, #3b82f6)' : idx === 1 ? 'linear-gradient(90deg, #047857, #10b981)' : idx === 2 ? 'linear-gradient(90deg, #b45309, #f59e0b)' : 'linear-gradient(90deg, #4f46e5, #818cf8)';
+                
+                html += '<div onclick="showShiftDetail(\'' + empName.replace(/'/g, "\\'") + '\', \'' + shiftName.replace(/'/g, "\\'") + '\', \'' + monthVal + '\')" style="display:flex; align-items:center; gap:12px; padding:14px 16px; background:' + bgColor + '; border:2px solid ' + borderColor + '; border-radius:10px; margin-bottom:8px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); cursor:pointer;">';
+                html += '<div style="width:35px; text-align:center; font-size:20px;">' + rankIcon + '</div>';
+                html += '<div style="flex:1; font-weight:' + fontWeight + '; font-size:15px; color:' + nameColor + ';">' + empName + '</div>';
+                html += '<div style="flex:2; background:#e5e7eb; border-radius:12px; height:10px; overflow:hidden; box-shadow:inset 0 2px 4px rgba(0,0,0,0.1);">';
+                html += '<div style="background:' + barGradient + '; height:100%; width:' + percentage + '%; border-radius:12px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div></div>';
+                html += '<div style="min-width:50px; text-align:right; font-weight:600; font-size:16px; color:' + barColor + ';">' + count + ' ngày</div>';
+                html += '</div>';
+            });
+            html += '</div>';
+        }
+        html += '</div></div>';
+    });
+    
+    document.getElementById('shiftRankingResult').innerHTML = html || '<div class="muted" style="text-align:center;padding:40px;">📊 Không có dữ liệu trong tháng này cho các ca đã chọn</div>';
 };
 
 // ==================== TASK DETAIL FUNCTIONS ====================
@@ -4425,7 +4427,7 @@ function init() {
     
     checkAdmin();
     
-    // 1. Hiển thị ngay dữ liệu cũ trong máy (nếu có) để không bị trắng trang
+    // Hiển thị dữ liệu cũ trong máy ngay lập tức
     rShifts(); rGFull(); rGCompact(); rEmp(); rShiftList();
     renderAudit(); renderStatistics(); initAutocomplete();
     renderSelectedEmployees(); initNoteCharCount(); renderMissingEmployees();
@@ -4433,15 +4435,8 @@ function init() {
     var empCount = document.getElementById('empCount');
     if (empCount) empCount.textContent = emp.length + ' NV';
 
-    // 2. Tải dữ liệu từ Firebase
+    // Tải dữ liệu từ Firebase (Tải toàn bộ 1 lần)
     if (!isAdmin && typeof db !== 'undefined') {
-        // Hiện thông báo debug ở góc màn hình
-        var statusDiv = document.createElement('div');
-        statusDiv.id = 'fbStatus';
-        statusDiv.style.cssText = 'position:fixed; top:0; left:0; right:0; background:#3b82f6; color:white; padding:8px; font-size:12px; z-index:99999; text-align:center; font-weight:bold;';
-        statusDiv.textContent = '⏳ Đang tải dữ liệu từ Firebase...';
-        document.body.appendChild(statusDiv);
-
         db.ref('chamcong').once('value').then(function(snapshot) {
             var data = snapshot.val();
             if (data) {
@@ -4450,32 +4445,22 @@ function init() {
                     var gArr = Array.isArray(data.groups) ? data.groups : Object.values(data.groups);
                     localStorage.setItem('g', JSON.stringify(gArr));
                 }
-             if (data.records) {
-            var allRecs = Array.isArray(data.records) ? data.records : Object.values(data.records);
-            localStorage.setItem('r', JSON.stringify(allRecs));
-            console.log('✅ Đã tải TOÀN BỘ ' + allRecs.length + ' bản ghi từ Firebase');
+                if (data.records) {
+                    var allRecs = Array.isArray(data.records) ? data.records : Object.values(data.records);
+                    localStorage.setItem('r', JSON.stringify(allRecs));
+                    console.log('✅ Đã tải TOÀN BỘ ' + allRecs.length + ' bản ghi từ Firebase');
                 }
-
-                statusDiv.style.background = '#10b981'; // Màu xanh lá
-                statusDiv.textContent = '✅ Đã tải xong dữ liệu từ Firebase!';
-                setTimeout(function() { statusDiv.remove(); }, 3000);
                 
                 // Render lại toàn bộ giao diện
                 refreshAllUI();
                 rEmp();
                 renderStatistics();
-            } else {
-                statusDiv.style.background = '#ef4444'; // Màu đỏ
-                statusDiv.textContent = '❌ Firebase trống hoặc lỗi dữ liệu!';
             }
         }).catch(function(e) {
-            statusDiv.style.background = '#ef4444';
-            statusDiv.textContent = '❌ Lỗi Firebase: ' + e.message;
-            console.error(e);
+            console.error('❌ Lỗi Firebase: ' + e.message);
         });
     }
 
-    // 3. Các cài đặt khác
     var attDate = document.getElementById('attDate');
     if (attDate) attDate.value = new Date().toISOString().split('T')[0];
     
@@ -5543,46 +5528,6 @@ window.testFirebaseData = function() {
     });
 };
 
-window.fetchRecordsByTime = async function(timeStr) {
-    if (!timeStr) return;
-    
-    // Kiểm tra xem máy đã tải toàn bộ dữ liệu chưa, nếu tải rồi thì không tải lại để tiết kiệm dung lượng
-    var isFullyLoaded = localStorage.getItem('is_fully_loaded') === 'true';
-    if (isFullyLoaded) {
-        return; 
-    }
-    
-    try {
-        console.log('⏳ Đang tải dữ liệu cho: ' + timeStr);
-        
-        var snapshot = await db.ref('chamcong/records').once('value');
-        var data = snapshot.val();
-        
-        if (data) {
-            var allRecs = Array.isArray(data) ? data : Object.values(data);
-            localStorage.setItem('r', JSON.stringify(allRecs));
-            localStorage.setItem('is_fully_loaded', 'true'); // Đánh dấu đã tải xong toàn bộ
-            
-            console.log('✅ Đã tải toàn bộ ' + allRecs.length + ' bản ghi từ Firebase');
-            
-            // Vẽ lại toàn bộ giao diện
-            if (typeof refreshAllUI === 'function') refreshAllUI();
-            if (typeof renderStatistics === 'function') renderStatistics();
-            if (typeof applyStatsFilters === 'function') applyStatsFilters();
-            
-            // 👉 QUAN TRỌNG: Vẽ lại bảng xếp hạng ca nếu đang ở tab Theo Ca
-            if (typeof loadShiftRanking === 'function' && document.getElementById('subTabShiftDetail').style.display !== 'none') {
-                loadShiftRanking();
-            }
-        }
-    } catch(e) {
-        console.error('❌ Lỗi tải dữ liệu:', e);
-        if (typeof showAlert === 'function') {
-            showAlert('⚠️ Lỗi tải dữ liệu: ' + e.message);
-        }
-    }
-};
-
 // Tự động gắn sự kiện tải dữ liệu cho TẤT CẢ các ô chọn tháng
 document.addEventListener('change', function(e) {
     if (e.target && e.target.type === 'month') {
@@ -5596,36 +5541,3 @@ document.addEventListener('change', function(e) {
         }
     }
 });
-
-window.fetchRecordsByTime = async function(timeStr) {
-    if (!timeStr) return;
-    try {
-        console.log('⏳ Đang tải dữ liệu tháng: ' + timeStr);
-        
-        // Tải toàn bộ records từ Firebase
-        var snapshot = await db.ref('chamcong/records').once('value');
-        var data = snapshot.val();
-        
-        if (data) {
-            var allRecs = Array.isArray(data) ? data : Object.values(data);
-            // Lưu toàn bộ vào máy (để sau này lọc)
-            localStorage.setItem('r', JSON.stringify(allRecs));
-            localStorage.setItem('is_fully_loaded', 'true');
-            
-            console.log('✅ Đã tải toàn bộ ' + allRecs.length + ' bản ghi từ Firebase');
-            
-            // Vẽ lại giao diện
-            if (typeof refreshAllUI === 'function') refreshAllUI();
-            if (typeof renderStatistics === 'function') renderStatistics();
-            if (typeof applyStatsFilters === 'function') applyStatsFilters();
-            
-            // Nếu đang ở tab Theo Ca thì load lại bảng
-            var shiftTab = document.getElementById('subTabShiftDetail');
-            if (shiftTab && shiftTab.style.display !== 'none' && typeof loadShiftRanking === 'function') {
-                loadShiftRanking();
-            }
-        }
-    } catch(e) {
-        console.error('❌ Lỗi tải dữ liệu:', e);
-    }
-};
