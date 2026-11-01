@@ -1,5 +1,5 @@
 // Tăng version để force update
-var CACHE_NAME = 'chamcong-v2';  // 👈 Đổi v1 → v2
+var CACHE_NAME = 'chamcong-v3';  // 👈 Đổi v1 → v2
 
 var urlsToCache = [
     '/cc/',
