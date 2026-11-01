@@ -2325,3 +2325,32 @@ button[onclick="loadFromFirebase()"]:active {
     padding: 6px 12px !important;
     white-space: nowrap;
 }
+/* Ẩn phần thân của nhóm theo mặc định */
+.group-compact-body {
+    display: none !important;
+}
+
+/* Chỉ hiển thị khi được click (có class open) */
+.group-compact-frame.open .group-compact-body {
+    display: block !important;
+}
+
+/* Thêm hiệu ứng xoay mũi tên cho đẹp */
+.group-compact-frame.open .group-compact-arrow {
+    transform: rotate(180deg);
+    transition: transform 0.2s;
+}
+/* Ép thu gọn toàn bộ nhóm */
+.group-compact-body {
+    display: none !important; 
+}
+
+/* Chỉ hiển thị khi click mở (có class open) */
+.group-compact-frame.open .group-compact-body {
+    display: block !important;
+}
+
+/* Xoay mũi tên khi mở */
+.group-compact-frame.open .group-compact-arrow {
+    transform: rotate(180deg);
+}

@@ -1002,7 +1002,14 @@ function rGCompact() {
     header.onclick = function(e) {
       e.stopPropagation();
       var f = this.closest('.group-compact-frame');
-      if (f) f.classList.toggle('open');
+      if (f) {
+          f.classList.toggle('open');
+          var body = f.querySelector('.group-compact-body');
+          if (body) {
+              // Ép buộc ẩn/hiện trực tiếp bằng JS
+              body.style.display = f.classList.contains('open') ? 'block' : 'none';
+          }
+      }
     };
     var headerLeft = document.createElement('div');
     headerLeft.className = 'group-compact-header-left';
@@ -1029,6 +1036,7 @@ function rGCompact() {
     frame.appendChild(header);
     var body = document.createElement('div');
     body.className = 'group-compact-body';
+    body.style.display = 'none';
     if (!hasTasks) {
       var emptyDiv = document.createElement('div');
       emptyDiv.className = 'group-compact-empty';
@@ -3205,6 +3213,7 @@ function renderModalContent() {
     frame.appendChild(header);
     var body = document.createElement('div');
     body.className = 'group-compact-body';
+    body.style.display = 'none';
     var tasksDiv = document.createElement('div');
     tasksDiv.className = 'group-compact-tasks';
     g.items.forEach(function(it) {
