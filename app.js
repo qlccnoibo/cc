@@ -4399,6 +4399,7 @@ function updateClock() {
 
 // ==================== INIT ====================
 function init() {
+    console.log("🔥 ĐÃ CẬP NHẬT CODE MỚI - Phiên bản 1/11/2026");
     if (!Date.prototype._toISOString) {
         Date.prototype._toISOString = Date.prototype.toISOString;
         Date.prototype.toISOString = function() {
@@ -5516,4 +5517,19 @@ window.checkData = function() {
     }
     
     showAlert(msg, 'Kiểm tra dữ liệu');
+};
+
+window.testFirebaseData = function() {
+    showAlert('⏳ Đang kết nối Firebase...');
+    firebase.database().ref('chamcong').once('value').then(function(snapshot) {
+        var data = snapshot.val();
+        if (data && data.records) {
+            var count = Object.keys(data.records).length;
+            showAlert('✅ Lấy dữ liệu THÀNH CÔNG!\nSố bản ghi trên Firebase: ' + count);
+        } else {
+            showAlert('⚠️ Kết nối được nhưng Firebase TRỐNG!');
+        }
+    }).catch(function(error) {
+        showAlert('❌ LỖI KẾT NỐI FIREBASE:\n' + error.message);
+    });
 };
