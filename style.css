@@ -2359,3 +2359,8 @@ button[onclick="loadFromFirebase()"]:active {
 body.admin-mode .employee-only {
     display: none !important;
 }
+
+@keyframes marquee {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-100%); }
+}
