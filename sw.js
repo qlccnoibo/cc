@@ -1,5 +1,5 @@
-// Tăng version để force update
-var CACHE_NAME = 'chamcong-v3';  // 👈 Đổi v1 → v2
+// Tăng số này lên mỗi khi bạn sửa code (v1 -> v2 -> v3...)
+var CACHE_NAME = 'chamcong-v6'; 
 
 var urlsToCache = [
     '/cc/',
@@ -9,12 +9,7 @@ var urlsToCache = [
 ];
 
 self.addEventListener('install', function(event) {
-    event.waitUntil(
-        caches.open(CACHE_NAME).then(function(cache) {
-            return cache.addAll(urlsToCache);
-        })
-    );
-    self.skipWaiting();
+    self.skipWaiting(); // Bắt buộc kích hoạt bản mới ngay
 });
 
 self.addEventListener('activate', function(event) {
@@ -23,7 +18,7 @@ self.addEventListener('activate', function(event) {
             return Promise.all(
                 cacheNames.map(function(cacheName) {
                     if (cacheName !== CACHE_NAME) {
-                        return caches.delete(cacheName);
+                        return caches.delete(cacheName); // Xóa cache cũ
                     }
                 })
             );
@@ -32,18 +27,26 @@ self.addEventListener('activate', function(event) {
     self.clients.claim();
 });
 
-// 👈 QUAN TRỌNG: Không cache data từ Firebase
+// 👉 CƠ CHẾ MỚI: Ưu tiên lấy từ mạng, nếu lỗi mới lấy từ cache
 self.addEventListener('fetch', function(event) {
-    // Bỏ qua request đến Firebase, GitHub API
-    if (event.request.url.includes('firebase') || 
-        event.request.url.includes('googleapis') ||
-        event.request.url.includes('githubusercontent')) {
-        return; // Không cache
+    // Bỏ qua các request đến Firebase
+    if (event.request.url.includes('firebase') || event.request.url.includes('googleapis')) {
+        return;
     }
-    
+
     event.respondWith(
-        caches.match(event.request).then(function(response) {
-            return response || fetch(event.request);
-        })
+        fetch(event.request)
+            .then(function(response) {
+                // Nếu tải từ mạng thành công, cập nhật lại vào cache
+                var responseClone = response.clone();
+                caches.open(CACHE_NAME).then(function(cache) {
+                    cache.put(event.request, responseClone);
+                });
+                return response;
+            })
+            .catch(function() {
+                // Nếu mất mạng, lấy bản lưu trong cache ra dùng
+                return caches.match(event.request);
+            })
     );
 });
