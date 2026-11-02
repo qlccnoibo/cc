@@ -2354,3 +2354,8 @@ button[onclick="loadFromFirebase()"]:active {
 .group-compact-frame.open .group-compact-arrow {
     transform: rotate(180deg);
 }
+
+/* Ẩn nút cập nhật khi ở chế độ Admin */
+body.admin-mode .employee-only {
+    display: none !important;
+}

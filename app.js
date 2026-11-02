@@ -386,29 +386,35 @@ function checkAdmin() {
 }
 
 function adminMode() {
-  isAdmin = true;
-  emp = L(EMP_KEY, []);
-  rEmp();
-  var backupSec = document.getElementById('backupSection');
-  if (backupSec) backupSec.style.display = '';
-  var tabCC = document.getElementById('tabChamCong');
-  var tabQL = document.getElementById('tabQuanLy');
-  if (tabCC) tabCC.style.display = '';
-  if (tabQL) tabQL.style.display = '';
-  var btn = document.getElementById('adminLoginBtn');
-  if (btn) { btn.textContent = '🔓 Admin';
-    btn.style.background = '#10b981'; }
+    isAdmin = true;
+    document.body.classList.add('admin-mode'); 
+    
+    emp = L(EMP_KEY, []);
+    rEmp();
+    
+    var backupSec = document.getElementById('backupSection');
+    if (backupSec) backupSec.style.display = '';
+    
+    var tabCC = document.getElementById('tabChamCong');
+    var tabQL = document.getElementById('tabQuanLy');
+    if (tabCC) tabCC.style.display = '';
+    if (tabQL) tabQL.style.display = '';
+    
+    var btn = document.getElementById('adminLoginBtn');
+    if (btn) { 
+        btn.textContent = '🔓 Admin';
+        btn.style.background = '#10b981'; 
+    }
+    
     if (typeof renderStatsTable === 'function') {
         var records = L(REC_KEY, []);
         renderStatsTable(records);
     }
-    
-    var btn = document.getElementById('adminLoginBtn');
-    if (btn) { btn.textContent = '🔓 Admin'; btn.style.background = '#10b981'; }
 }
 
 function employeeMode() {
   isAdmin = false;
+  document.body.classList.remove('admin-mode');
   var _hiddenEmps = JSON.parse(localStorage.getItem('hidden_emps') || '[]');
   emp = L(EMP_KEY, []);
   if (_hiddenEmps.length > 0) {
@@ -432,7 +438,7 @@ function employeeMode() {
   if (pageQL) pageQL.style.display = 'none';
   switchTab('ThongKe');
   var btn = document.getElementById('adminLoginBtn');
-  if (btn) { btn.textContent = '🔐 Đăng nhập';
+  if (btn) { btn.textContent = '🔐 Login';
     btn.style.background = '#64748b'; }
 }
 
@@ -4436,7 +4442,7 @@ function init() {
     
     checkAdmin();
     
-    // Hiển thị dữ liệu cũ trong máy ngay lập tức
+    // 1. Hiển thị ngay dữ liệu cũ trong máy (nếu có) để không bị trắng trang
     rShifts(); rGFull(); rGCompact(); rEmp(); rShiftList();
     renderAudit(); renderStatistics(); initAutocomplete();
     renderSelectedEmployees(); initNoteCharCount(); renderMissingEmployees();
@@ -4444,50 +4450,61 @@ function init() {
     var empCount = document.getElementById('empCount');
     if (empCount) empCount.textContent = emp.length + ' NV';
 
- if (!isAdmin && typeof db !== 'undefined') {
-    // Hiển thị thông báo đang tải
-    var statusDiv = document.createElement('div');
-    statusDiv.id = 'fbStatus';
-    statusDiv.style.cssText = 'position:fixed; top:0; left:0; right:0; background:#3b82f6; color:white; padding:8px; font-size:12px; z-index:99999; text-align:center; font-weight:bold;';
-    statusDiv.textContent = '⏳ Đang tải toàn bộ dữ liệu từ Firebase...';
-    document.body.appendChild(statusDiv);
+    // 2. Tải dữ liệu từ Firebase (Cơ chế thông minh: Chỉ tải 1 lần)
+    if (!isAdmin && typeof db !== 'undefined') {
+        // 👉 KIỂM TRA: Nếu máy đã có dữ liệu rồi thì KHÔNG tải lại từ Firebase nữa (Tiết kiệm 1GB)
+        var currentData = localStorage.getItem('r');
+        
+        if (!currentData || currentData === '[]') {
+            // Hiển thị thông báo đang tải (Chỉ hiện lần đầu)
+            var statusDiv = document.createElement('div');
+            statusDiv.id = 'fbStatus';
+            statusDiv.style.cssText = 'position:fixed; top:0; left:0; right:0; background:#3b82f6; color:white; padding:8px; font-size:12px; z-index:99999; text-align:center; font-weight:bold;';
+            statusDiv.textContent = '⏳ Đang tải toàn bộ dữ liệu từ Firebase...';
+            document.body.appendChild(statusDiv);
 
-    // Tải TOÀN BỘ dữ liệu từ node 'chamcong'
-    db.ref('chamcong').once('value').then(function(snapshot) {
-        var data = snapshot.val();
-        if (data) {
-            if (data.employees) {
-                localStorage.setItem('e', JSON.stringify(data.employees));
-            }
-            if (data.groups) {
-                var gArr = Array.isArray(data.groups) ? data.groups : Object.values(data.groups);
-                localStorage.setItem('g', JSON.stringify(gArr));
-            }
-            if (data.records) {
-                var allRecs = Array.isArray(data.records) ? data.records : Object.values(data.records);
-                localStorage.setItem('r', JSON.stringify(allRecs));
-                console.log('✅ Đã tải TOÀN BỘ ' + allRecs.length + ' bản ghi từ Firebase');
-            }
-            
-            statusDiv.style.background = '#10b981'; // Màu xanh lá
-            statusDiv.textContent = '✅ Đã tải xong toàn bộ dữ liệu!';
-            setTimeout(function() { statusDiv.remove(); }, 3000);
-            
-            // Render lại toàn bộ giao diện
-            if (typeof refreshAllUI === 'function') refreshAllUI();
-            if (typeof rEmp === 'function') rEmp();
-            if (typeof renderStatistics === 'function') renderStatistics();
+            // Tải TOÀN BỘ dữ liệu từ node 'chamcong'
+            db.ref('chamcong').once('value').then(function(snapshot) {
+                var data = snapshot.val();
+                if (data) {
+                    if (data.employees) {
+                        localStorage.setItem('e', JSON.stringify(data.employees));
+                    }
+                    if (data.groups) {
+                        var gArr = Array.isArray(data.groups) ? data.groups : Object.values(data.groups);
+                        localStorage.setItem('g', JSON.stringify(gArr));
+                    }
+                    if (data.records) {
+                        var allRecs = Array.isArray(data.records) ? data.records : Object.values(data.records);
+                        localStorage.setItem('r', JSON.stringify(allRecs));
+                        console.log('✅ Đã tải TOÀN BỘ ' + allRecs.length + ' bản ghi từ Firebase');
+                    }
+                    
+                    statusDiv.style.background = '#10b981'; // Màu xanh lá
+                    statusDiv.textContent = '✅ Đã tải xong toàn bộ dữ liệu!';
+                    setTimeout(function() { statusDiv.remove(); }, 3000);
+                    
+                    // Render lại toàn bộ giao diện
+                    if (typeof refreshAllUI === 'function') refreshAllUI();
+                    if (typeof rEmp === 'function') rEmp();
+                    if (typeof renderStatistics === 'function') renderStatistics();
+                } else {
+                    statusDiv.style.background = '#ef4444';
+                    statusDiv.textContent = '❌ Firebase trống hoặc lỗi dữ liệu!';
+                }
+            }).catch(function(e) {
+                statusDiv.style.background = '#ef4444';
+                statusDiv.textContent = '❌ Lỗi Firebase: ' + e.message;
+                console.error(e);
+            });
         } else {
-            statusDiv.style.background = '#ef4444';
-            statusDiv.textContent = '❌ Firebase trống hoặc lỗi dữ liệu!';
+            // 👉 Nếu máy đã có dữ liệu, chỉ hiển thị lên, KHÔNG tải từ Firebase
+            console.log('⚡ Đã có dữ liệu trong máy, không tải từ Firebase để tiết kiệm 1GB.');
+            if (typeof refreshAllUI === 'function') refreshAllUI();
         }
-    }).catch(function(e) {
-        statusDiv.style.background = '#ef4444';
-        statusDiv.textContent = '❌ Lỗi Firebase: ' + e.message;
-        console.error(e);
-    });
-}
+    }
 
+    // 3. Các cài đặt khác
     var attDate = document.getElementById('attDate');
     if (attDate) attDate.value = new Date().toISOString().split('T')[0];
     
@@ -5568,3 +5585,40 @@ document.addEventListener('change', function(e) {
         }
     }
 });
+window.forceUpdateFromFirebase = function() {
+    if (typeof db === 'undefined') {
+        showAlert('⚠️ Lỗi: Chưa kết nối được với Firebase!');
+        return;
+    }
+    
+    showAlert('⏳ Đang tải dữ liệu mới nhất từ Firebase, vui lòng đợi...');
+    
+    db.ref('chamcong').once('value').then(function(snapshot) {
+        var data = snapshot.val();
+        if (data) {
+            if (data.employees) localStorage.setItem('e', JSON.stringify(data.employees));
+            
+            if (data.groups) {
+                var gArr = Array.isArray(data.groups) ? data.groups : Object.values(data.groups);
+                localStorage.setItem('g', JSON.stringify(gArr));
+            }
+            
+            if (data.records) {
+                var allRecs = Array.isArray(data.records) ? data.records : Object.values(data.records);
+                localStorage.setItem('r', JSON.stringify(allRecs));
+                console.log('✅ Đã cập nhật: ' + allRecs.length + ' bản ghi');
+            }
+            
+            if (typeof refreshAllUI === 'function') refreshAllUI();
+            if (typeof rEmp === 'function') rEmp();
+            if (typeof renderStatistics === 'function') renderStatistics();
+            
+            showAlert('✅ Đã cập nhật dữ liệu mới nhất thành công!');
+        } else {
+            showAlert('⚠️ Firebase chưa có dữ liệu!');
+        }
+    }).catch(function(e) {
+        console.error('Lỗi Firebase:', e);
+        showAlert('❌ Lỗi tải dữ liệu: ' + e.message);
+    });
+};
