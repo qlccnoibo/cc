@@ -36,13 +36,9 @@
     <button id="tabCaNhan" type="button">👤 Cá nhân</button>
     <button id="tabQuanLy" class="admin-only" type="button">⚙️ Quản lý</button>
     <button class="employee-only" onclick="forceUpdateFromFirebase()" style="background:#3b82f6; color:white; border:none; border-radius:6px; padding:6px 12px; font-size:13px; cursor:pointer; margin-left:auto;">
-    🔄 Cập nhật dữ liệu
+    🔄 Update data
     </button>
-    <button class="admin-only" onclick="uploadToGithub()" 
-        style="padding:8px 14px; background:#3b82f6; color:white; border:none; border-radius:8px; font-size:13px; cursor:pointer; white-space:nowrap;">
-        📤 Upload lên Github
-    </button>
-    <button id="adminLoginBtn" onclick="toggleAdmin()" 
+        <button id="adminLoginBtn" onclick="toggleAdmin()" 
             style="margin-left:auto; padding:8px 14px; 
                    background:#64748b; color:white; border:none; border-radius:8px; 
                    font-size:13px; cursor:pointer; white-space:nowrap;">
@@ -144,6 +140,8 @@
       <button onclick="checkData()" style="background:#ef4444;color:white;padding:8px 16px;border:none;border-radius:8px;">
           🔍 Kiểm tra dữ liệu
         </button>
+        <button class="btn btn-sm" onclick="backupAllData()">💾 Backup</button>
+        <button class="btn btn-sm" onclick="restoreAllData()">📂 Restore</button>
     </div>
       <div class="manage-layout">
         <div>
@@ -159,8 +157,7 @@
             <input id="importGroups" type="file" accept=".json" style="display:none" />
             <button class="btn btn-sm" id="importGroupsBtn">📤 Nhập nhóm</button>
             <button class="btn btn-sm btn-danger" id="resetGroups">🔄 Reset nhóm</button>
-            <button class="btn btn-sm" onclick="backupAllData()">💾 Backup</button>
-            <button class="btn btn-sm" onclick="restoreAllData()">📂 Restore</button>
+            
           </div>
         </div>
         <aside class="side-panel">
