@@ -5585,13 +5585,21 @@ document.addEventListener('change', function(e) {
         }
     }
 });
+
+var _lastUpdateTime = 0;
 window.forceUpdateFromFirebase = function() {
-    if (typeof db === 'undefined') {
-        showAlert('⚠️ Lỗi: Chưa kết nối được với Firebase!');
+    if (typeof db === 'undefined') return;
+    
+    // 👉 KIỂM TRA THỜI GIAN CHỜ (Ví dụ: 2 phút = 120000 ms)
+    var now = Date.now();
+    if (now - _lastUpdateTime < 120000) {
+        var timeLeft = Math.ceil((120000 - (now - _lastUpdateTime)) / 1000);
+        showAlert('⏳ Vui lòng đợi ' + timeLeft + ' giây nữa để cập nhật tiếp!');
         return;
     }
     
-    showAlert('⏳ Đang tải dữ liệu mới nhất từ Firebase, vui lòng đợi...');
+    _lastUpdateTime = now;
+    showAlert('⏳ Đang tải dữ liệu mới nhất...');
     
     db.ref('chamcong').once('value').then(function(snapshot) {
         var data = snapshot.val();
