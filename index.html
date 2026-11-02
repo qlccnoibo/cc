@@ -301,8 +301,9 @@
   <div id="notePopup" class="note-popup"></div>
 
   <script>
+<script>
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js')
+    navigator.serviceWorker.register('sw.js?v=6')
         .then(function() { console.log('✅ Service Worker đã đăng ký'); })
         .catch(function(e) { console.error('❌ Lỗi SW:', e); });
 }
