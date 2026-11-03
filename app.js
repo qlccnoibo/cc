@@ -5606,11 +5606,12 @@ document.addEventListener('change', function(e) {
 });
 
 var _lastUpdateTime = 0;
+
 window.forceUpdateFromFirebase = function() {
     if (typeof db === 'undefined') return;
     
-    // 👉 KIỂM TRA THỜI GIAN CHỜ (Ví dụ: 2 phút = 120000 ms)
     var now = Date.now();
+    // Kiểm tra thời gian chờ (chống spam)
     if (now - _lastUpdateTime < 120000) {
         var timeLeft = Math.ceil((120000 - (now - _lastUpdateTime)) / 1000);
         showAlert('⏳ Vui lòng đợi ' + timeLeft + ' giây nữa để cập nhật tiếp!');
@@ -5639,6 +5640,11 @@ window.forceUpdateFromFirebase = function() {
             if (typeof refreshAllUI === 'function') refreshAllUI();
             if (typeof rEmp === 'function') rEmp();
             if (typeof renderStatistics === 'function') renderStatistics();
+            
+            // 👉 THÊM ĐOẠN NÀY ĐỂ TẮT DẤU CHẤM THAN
+            localStorage.setItem('last_seen_update', Date.now().toString());
+            var badge = document.getElementById('updateBadge');
+            if (badge) badge.style.display = 'none'; 
             
             showAlert('✅ Đã cập nhật dữ liệu mới nhất thành công!');
         } else {
