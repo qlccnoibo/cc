@@ -4519,7 +4519,7 @@ function init() {
             if (typeof refreshAllUI === 'function') refreshAllUI();
         }
     }
-    
+
     // 3. Các cài đặt khác
     var attDate = document.getElementById('attDate');
     if (attDate) attDate.value = new Date().toISOString().split('T')[0];
@@ -4912,7 +4912,7 @@ async function saveToFirebase() {
         
         await db.ref('chamcong').set(allData);
         
-        // 👉 THÊM DÒNG NÀY: Lưu mốc thời gian riêng để báo hiệu có dữ liệu mới
+        // 👉 DÒNG QUAN TRỌNG: Lưu mốc thời gian báo hiệu có dữ liệu mới
         await db.ref('chamcong/last_updated').set(Date.now());
         
         showAlert('✅ Đã đồng bộ lên Firebase!');
