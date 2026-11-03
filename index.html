@@ -36,9 +36,13 @@
     <button id="tabThongKe" type="button">📊 Thống kê</button>
     <button id="tabCaNhan" type="button">👤 Cá nhân</button>
     <button id="tabQuanLy" class="admin-only" type="button">⚙️ Quản lý</button>
-    <button class="employee-only" onclick="forceUpdateFromFirebase()" style="background:#3b82f6; color:white; border:none; border-radius:6px; padding:6px 12px; font-size:13px; cursor:pointer; margin-left:auto;">
-    🔄 Update data
+    <div class="update-btn-wrapper employee-only">
+    <button onclick="forceUpdateFromFirebase()" style="background:#3b82f6; color:white; border:none; border-radius:6px; padding:6px 12px; font-size:13px; cursor:pointer;">
+        🔄 Update data
     </button>
+    <!-- 👉 Chấm đỏ thông báo (mặc định ẩn) -->
+    <span id="updateBadge" class="badge-notify" style="display: none;">!</span>
+    </div>
         <button id="adminLoginBtn" onclick="toggleAdmin()" 
             style="margin-left:auto; padding:8px 14px; 
                    background:#64748b; color:white; border:none; border-radius:8px; 

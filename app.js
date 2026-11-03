@@ -4450,8 +4450,24 @@ function init() {
     var empCount = document.getElementById('empCount');
     if (empCount) empCount.textContent = emp.length + ' NV';
 
-    // 2. Tải dữ liệu từ Firebase (Cơ chế thông minh: Chỉ tải 1 lần)
+        // 2. Tải dữ liệu từ Firebase (Cơ chế thông minh: Chỉ tải 1 lần)
     if (!isAdmin && typeof db !== 'undefined') {
+        
+        // 👉 KIỂM TRA THÔNG BÁO DỮ LIỆU MỚI (Hiện chấm đỏ)
+        db.ref('chamcong/last_updated').on('value', function(snap) {
+            var lastUpdated = snap.val();
+            var lastSeen = parseInt(localStorage.getItem('last_seen_update') || '0');
+            var badge = document.getElementById('updateBadge');
+            
+            if (lastUpdated && lastUpdated > lastSeen) {
+                // Có dữ liệu mới -> Hiện chấm đỏ
+                if (badge) badge.style.display = 'inline-block';
+            } else {
+                // Không có dữ liệu mới -> Ẩn chấm đỏ
+                if (badge) badge.style.display = 'none';
+            }
+        });
+
         // 👉 KIỂM TRA: Nếu máy đã có dữ liệu rồi thì KHÔNG tải lại từ Firebase nữa (Tiết kiệm 1GB)
         var currentData = localStorage.getItem('r');
         
@@ -4503,7 +4519,7 @@ function init() {
             if (typeof refreshAllUI === 'function') refreshAllUI();
         }
     }
-
+    
     // 3. Các cài đặt khác
     var attDate = document.getElementById('attDate');
     if (attDate) attDate.value = new Date().toISOString().split('T')[0];
@@ -4891,11 +4907,14 @@ async function saveToFirebase() {
         var allData = {
             employees: JSON.parse(localStorage.getItem('e') || '[]'),
             groups: JSON.parse(localStorage.getItem('g') || '[]'),
-            records: JSON.parse(localStorage.getItem('r') || '[]'),
-            lastUpdated: Date.now()
+            records: JSON.parse(localStorage.getItem('r') || '[]')
         };
         
         await db.ref('chamcong').set(allData);
+        
+        // 👉 THÊM DÒNG NÀY: Lưu mốc thời gian riêng để báo hiệu có dữ liệu mới
+        await db.ref('chamcong/last_updated').set(Date.now());
+        
         showAlert('✅ Đã đồng bộ lên Firebase!');
     } catch(e) {
         console.error('Lỗi lưu Firebase:', e);
