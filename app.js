@@ -4901,7 +4901,6 @@ window.copyGroupToAnotherDate = async function() {
 
 // ==================== ĐỒNG BỘ FIREBASE ====================
 
-// Lưu toàn bộ dữ liệu lên Firebase
 async function saveToFirebase() {
     try {
         var allData = {
@@ -4910,9 +4909,10 @@ async function saveToFirebase() {
             records: JSON.parse(localStorage.getItem('r') || '[]')
         };
         
+        // 1. Lưu data
         await db.ref('chamcong').set(allData);
         
-        // 👉 DÒNG QUAN TRỌNG: Lưu mốc thời gian báo hiệu có dữ liệu mới
+        // 2. Lưu mốc thời gian riêng ra ngoài (ĐÂY LÀ DÒNG BẠN ĐANG THIẾU)
         await db.ref('chamcong/last_updated').set(Date.now());
         
         showAlert('✅ Đã đồng bộ lên Firebase!');
