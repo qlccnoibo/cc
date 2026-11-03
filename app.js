@@ -4495,7 +4495,10 @@ function init() {
                         localStorage.setItem('r', JSON.stringify(allRecs));
                         console.log('✅ Đã tải TOÀN BỘ ' + allRecs.length + ' bản ghi từ Firebase');
                     }
-                    
+                    if (data.hidden_emps) {
+                        localStorage.setItem('hidden_emps', JSON.stringify(data.hidden_emps));
+                    }
+
                     statusDiv.style.background = '#10b981'; // Màu xanh lá
                     statusDiv.textContent = '✅ Đã tải xong toàn bộ dữ liệu!';
                     setTimeout(function() { statusDiv.remove(); }, 3000);
@@ -4906,7 +4909,8 @@ async function saveToFirebase() {
         var allData = {
             employees: JSON.parse(localStorage.getItem('e') || '[]'),
             groups: JSON.parse(localStorage.getItem('g') || '[]'),
-            records: JSON.parse(localStorage.getItem('r') || '[]')
+            records: JSON.parse(localStorage.getItem('r') || '[]'),
+            hidden_emps: JSON.parse(localStorage.getItem('hidden_emps') || '[]')
         };
         
         // 1. Lưu data
@@ -5626,6 +5630,12 @@ window.forceUpdateFromFirebase = function() {
         if (data) {
             if (data.employees) localStorage.setItem('e', JSON.stringify(data.employees));
             
+            if (data.hidden_emps) {
+                localStorage.setItem('hidden_emps', JSON.stringify(data.hidden_emps));
+            } else {
+                localStorage.setItem('hidden_emps', JSON.stringify([]));
+            }
+
             if (data.groups) {
                 var gArr = Array.isArray(data.groups) ? data.groups : Object.values(data.groups);
                 localStorage.setItem('g', JSON.stringify(gArr));
