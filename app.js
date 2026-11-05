@@ -4441,6 +4441,8 @@ function init() {
     }
     
     checkAdmin();
+    // 👉 Tự động dọn dẹp dữ liệu cũ để bảo vệ bộ nhớ máy
+    if (typeof autoCleanOldData === 'function') autoCleanOldData();
     
     // 1. Hiển thị ngay dữ liệu cũ trong máy (nếu có) để không bị trắng trang
     rShifts(); rGFull(); rGCompact(); rEmp(); rShiftList();
@@ -5615,7 +5617,7 @@ window.forceUpdateFromFirebase = function() {
     if (typeof db === 'undefined') return;
     
     var now = Date.now();
-    // Kiểm tra thời gian chờ (chống spam)
+    // Chống spam bấm nút (2 phút)
     if (now - _lastUpdateTime < 120000) {
         var timeLeft = Math.ceil((120000 - (now - _lastUpdateTime)) / 1000);
         showAlert('⏳ Vui lòng đợi ' + timeLeft + ' giây nữa để cập nhật tiếp!');
@@ -5623,45 +5625,97 @@ window.forceUpdateFromFirebase = function() {
     }
     
     _lastUpdateTime = now;
-    showAlert('⏳ Đang tải dữ liệu mới nhất...');
+    showAlert('⏳ Đang kiểm tra dữ liệu mới...');
     
-    db.ref('chamcong').once('value').then(function(snapshot) {
-        var data = snapshot.val();
-        if (data) {
-            if (data.employees) localStorage.setItem('e', JSON.stringify(data.employees));
-            
-            if (data.hidden_emps) {
-                localStorage.setItem('hidden_emps', JSON.stringify(data.hidden_emps));
-            } else {
-                localStorage.setItem('hidden_emps', JSON.stringify([]));
-            }
+    // Lấy mốc thời gian lần cuối nhân viên này cập nhật
+    var lastSeen = parseInt(localStorage.getItem('last_seen_update') || '0');
 
-            if (data.groups) {
-                var gArr = Array.isArray(data.groups) ? data.groups : Object.values(data.groups);
-                localStorage.setItem('g', JSON.stringify(gArr));
-            }
+    // Tải song song: Thông tin cơ bản + CHỈ NHỮNG BẢN GHI MỚI
+    Promise.all([
+        db.ref('chamcong/employees').once('value'),
+        db.ref('chamcong/groups').once('value'),
+        db.ref('chamcong/hidden_emps').once('value'),
+        db.ref('chamcong/records').orderByChild('timestamp').startAt(lastSeen + 1).once('value')
+    ]).then(function(results) {
+        var empData = results[0].val();
+        var groupData = results[1].val();
+        var hiddenData = results[2].val();
+        var newRecData = results[3].val();
+
+        // Cập nhật nhân viên, nhóm, danh sách ẩn
+        if (empData) localStorage.setItem('e', JSON.stringify(empData));
+        if (groupData) localStorage.setItem('g', JSON.stringify(Object.values(groupData)));
+        if (hiddenData) localStorage.setItem('hidden_emps', JSON.stringify(hiddenData));
+
+        // Cập nhật bản ghi mới
+        if (newRecData) {
+            var newRecs = Object.values(newRecData);
+            var currentRecs = JSON.parse(localStorage.getItem('r') || '[]');
             
-            if (data.records) {
-                var allRecs = Array.isArray(data.records) ? data.records : Object.values(data.records);
-                localStorage.setItem('r', JSON.stringify(allRecs));
-                console.log('✅ Đã cập nhật: ' + allRecs.length + ' bản ghi');
-            }
+            // Gộp dữ liệu mới vào dữ liệu cũ
+            var allRecs = currentRecs.concat(newRecs);
             
-            if (typeof refreshAllUI === 'function') refreshAllUI();
-            if (typeof rEmp === 'function') rEmp();
-            if (typeof renderStatistics === 'function') renderStatistics();
+            // Loại bỏ trùng lặp
+            var uniqueRecs = [];
+            var seenIds = new Set();
+            allRecs.forEach(function(r) {
+                if (r.id && !seenIds.has(r.id)) {
+                    seenIds.add(r.id);
+                    uniqueRecs.push(r);
+                }
+            });
             
-            // 👉 THÊM ĐOẠN NÀY ĐỂ TẮT DẤU CHẤM THAN
-            localStorage.setItem('last_seen_update', Date.now().toString());
-            var badge = document.getElementById('updateBadge');
-            if (badge) badge.style.display = 'none'; 
+            // 👉 DỌN DẸP BỘ NHỚ: Chỉ giữ lại 4 tháng gần nhất
+            var cutoffDate = new Date();
+            cutoffDate.setMonth(cutoffDate.getMonth() - 4);
+            var cutoffStr = cutoffDate.toISOString().split('T')[0];
             
-            showAlert('✅ Đã cập nhật dữ liệu mới nhất thành công!');
+            var trimmedRecs = uniqueRecs.filter(function(r) {
+                return r.date >= cutoffStr;
+            });
+            
+            localStorage.setItem('r', JSON.stringify(trimmedRecs));
+            console.log('✅ Đã tải thêm ' + newRecs.length + ' bản ghi mới. Đã dọn dẹp, còn lại: ' + trimmedRecs.length);
+            showAlert('✅ Đã cập nhật thêm ' + newRecs.length + ' bản ghi mới!');
         } else {
-            showAlert('⚠️ Firebase chưa có dữ liệu!');
+            showAlert('✅ Dữ liệu của bạn đã là mới nhất!');
         }
+
+        // Lưu mốc thời gian
+        localStorage.setItem('last_seen_update', Date.now().toString());
+        
+        // Ẩn chấm đỏ
+        var badge = document.getElementById('updateBadge');
+        if (badge) badge.style.display = 'none'; 
+        
+        // Render lại giao diện
+        if (typeof refreshAllUI === 'function') refreshAllUI();
+        if (typeof rEmp === 'function') rEmp();
+        if (typeof renderStatistics === 'function') renderStatistics();
+        
     }).catch(function(e) {
         console.error('Lỗi Firebase:', e);
         showAlert('❌ Lỗi tải dữ liệu: ' + e.message);
     });
+};
+
+// Hàm tự động dọn dẹp dữ liệu cũ trên máy (Chỉ giữ 4 tháng gần nhất)
+window.autoCleanOldData = function() {
+    var currentRecs = JSON.parse(localStorage.getItem('r') || '[]');
+    if (currentRecs.length === 0) return;
+
+    var cutoffDate = new Date();
+    cutoffDate.setMonth(cutoffDate.getMonth() - 4); // Lùi 4 tháng
+    var cutoffStr = cutoffDate.toISOString().split('T')[0];
+
+    // Lọc những bản ghi mới hơn 4 tháng
+    var trimmedRecs = currentRecs.filter(function(r) {
+        return r.date >= cutoffStr;
+    });
+
+    // Nếu số lượng bản ghi bị giảm đi (có dữ liệu cũ bị xóa)
+    if (trimmedRecs.length < currentRecs.length) {
+        localStorage.setItem('r', JSON.stringify(trimmedRecs));
+        console.log('🧹 Đã tự động dọn dẹp! Đã xóa ' + (currentRecs.length - trimmedRecs.length) + ' bản ghi cũ. Còn lại: ' + trimmedRecs.length);
+    }
 };
