@@ -1,39 +1,89 @@
 <!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><title>Restore Data</title></head>
-<body style="padding: 20px; font-family: sans-serif;">
-    <h2>Phục hồi dữ liệu vào máy</h2>
-    <input type="file" id="fileInput" accept=".json" style="margin-bottom: 20px;" />
-    <div id="status" style="color: green; font-weight: bold;"></div>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phục hồi dữ liệu khẩn cấp</title>
+    <style>
+        body { font-family: sans-serif; padding: 15px; background: #f1f5f9; }
+        textarea { width: 100%; height: 200px; margin-bottom: 10px; padding: 10px; border: 1px solid #ccc; border-radius: 8px; font-size: 12px; }
+        button { width: 100%; padding: 15px; background: #2563eb; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; }
+        #status { margin-top: 15px; padding: 10px; border-radius: 8px; font-weight: bold; text-align: center; }
+    </style>
+</head>
+<body>
+    <h3 style="text-align: center; color: #1e293b;">Phục hồi dữ liệu khẩn cấp</h3>
+    
+    <label>1. Chọn file backup (.json):</label>
+    <input type="file" id="fileInput" accept=".json" style="width: 100%; margin-bottom: 15px; padding: 10px; background: white; border-radius: 8px;">
+    
+    <label>Hoặc 2. Dán nội dung file backup vào đây:</label>
+    <textarea id="jsonText" placeholder="Dán nội dung file json vào đây..."></textarea>
+    
+    <button onclick="restoreData()">🚀 TIẾN HÀNH PHỤC HỒI</button>
+    
+    <div id="status"></div>
 
     <script>
+        var backupObj = null;
+
+        // Đọc file khi chọn
         document.getElementById('fileInput').addEventListener('change', function(e) {
             var file = e.target.files[0];
             if (!file) return;
             var reader = new FileReader();
             reader.onload = function(event) {
-                try {
-                    var data = JSON.parse(event.target.result);
-                    
-                    // Ghi đè toàn bộ vào LocalStorage của máy
-                    localStorage.setItem('e', JSON.stringify(data.employees || []));
-                    localStorage.setItem('g', JSON.stringify(data.groups || []));
-                    localStorage.setItem('r', JSON.stringify(data.records || []));
-                    if (data.hidden_emps) localStorage.setItem('hidden_emps', JSON.stringify(data.hidden_emps));
-                    
-                    // Báo hiệu cho web chính biết là đã có dữ liệu, không cần tải từ Firebase nữa
-                    localStorage.setItem('is_fully_loaded', 'true');
-                    localStorage.setItem('last_seen_update', Date.now().toString());
-                    
-                    document.getElementById('status').innerText = "✅ Đã nạp thành công " + (data.records ? data.records.length : 0) + " bản ghi! Hãy quay lại trang chủ web.";
-                    document.getElementById('status').style.color = 'green';
-                } catch (err) {
-                    document.getElementById('status').innerText = "❌ Lỗi đọc file: " + err.message;
-                    document.getElementById('status').style.color = 'red';
-                }
+                document.getElementById('jsonText').value = event.target.result;
+                document.getElementById('status').innerText = "Đã chọn file. Bấm nút Phục hồi bên dưới.";
+                document.getElementById('status').style.color = "blue";
+                document.getElementById('status').style.background = "#e0f2fe";
             };
             reader.readAsText(file);
         });
+
+        function restoreData() {
+            var status = document.getElementById('status');
+            var text = document.getElementById('jsonText').value.trim();
+            
+            if (!text) {
+                status.innerText = "⚠️ Vui lòng chọn file hoặc dán nội dung JSON!";
+                status.style.color = "red";
+                status.style.background = "#fee2e2";
+                return;
+            }
+
+            try {
+                var data = JSON.parse(text);
+                
+                // Lưu trực tiếp vào bộ nhớ điện thoại
+                localStorage.setItem('e', JSON.stringify(data.employees || []));
+                localStorage.setItem('g', JSON.stringify(data.groups || []));
+                localStorage.setItem('r', JSON.stringify(data.records || []));
+                if (data.hidden_emps) {
+                    localStorage.setItem('hidden_emps', JSON.stringify(data.hidden_emps));
+                }
+                
+                // Đánh dấu để không bị Firebase gọi đè lên
+                localStorage.setItem('is_fully_loaded', 'true');
+                localStorage.setItem('last_seen_update', Date.now().toString());
+                
+                status.innerText = "✅ THÀNH CÔNG! Đã nạp " + (data.records ? data.records.length : 0) + " bản ghi. Hãy quay lại trang chủ.";
+                status.style.color = "green";
+                status.style.background = "#dcfce7";
+                
+                // Hiện nút quay lại
+                setTimeout(function() {
+                    if(confirm("Phục hồi thành công! Bấm OK để quay lại trang chủ.")) {
+                        window.location.href = "https://qlccnoibo.github.io/cc/";
+                    }
+                }, 1000);
+                
+            } catch (err) {
+                status.innerText = "❌ Lỗi đọc JSON: " + err.message;
+                status.style.color = "red";
+                status.style.background = "#fee2e2";
+            }
+        }
     </script>
 </body>
 </html>
