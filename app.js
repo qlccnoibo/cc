@@ -1604,31 +1604,48 @@ window.rstG = async function() {
 // ==================== ATTENDANCE FUNCTIONS ====================
 window.subAtt = async function(e, keepTimestamp) {
   if (e) e.preventDefault();
-  if (selectedEmployees.length === 0) { await showAlert('Vui lòng chọn ít nhất 1 nhân viên!'); return false; }
-  var dt = document.getElementById('attDate').value || new Date().toISOString().split('T')[0];
+
+  // ===== 1. VALIDATE CƠ BẢN =====
+  if (selectedEmployees.length === 0) {
+    await showAlert('Vui lòng chọn ít nhất 1 nhân viên!');
+    return false;
+  }
+
+  var dt = document.getElementById('attDate').value || getLocalDateStr();
   var sh = getShift();
-  if (!sh) { await showAlert('Vui lòng chọn ca làm việc!'); return false; }
+  if (!sh) {
+    await showAlert('Vui lòng chọn ca làm việc!');
+    return false;
+  }
+
   var et = document.querySelector('input[name="eat"]:checked');
   et = et ? et.value : 'Có';
   var note = document.getElementById('attNote')?.value?.trim() || '';
+
+  // ===== 2. THU THẬP CÔNG ĐOẠN =====
   var ts = [];
   document.querySelectorAll('.task-checkbox:checked').forEach(function(cb) {
     var g = groups.find(function(g) { return g.id === cb.dataset.group; });
     var t = g ? g.items.find(function(it) { return it.id === cb.dataset.task; }) : null;
     if (t) ts.push({ group: g.title, task: t.name });
   });
-  var rec = L(REC_KEY, []);
+
   var timestamp = keepTimestamp || new Date().toISOString();
   var shiftName = sh ? sh.split('(')[0].trim() : '';
-  if (shiftName !== 'Nghỉ' && (!ts || ts.length === 0)) {
+
+  // Validate công đoạn (trừ ca Nghỉ)
+  if (shiftName !== 'Nghỉ' && ts.length === 0) {
     await showAlert('⚠️ Vui lòng chọn ít nhất 1 công đoạn làm việc!', 'Thiếu thông tin');
     return false;
   }
+
+  // ===== 3. KIỂM TRA TRÙNG (DEDUP) =====
   var attDateCheck = dt.split('T')[0];
-  var taskNamesCheck = (ts || []).map(function(t) { return t.task; }).sort().join(',');
+  var taskNamesCheck = ts.map(function(t) { return t.task; }).sort().join(',');
   var existingRecords = L(REC_KEY, []);
   var duplicateNames = [];
   var tempSelected = selectedEmployees.slice();
+
   tempSelected.forEach(function(en) {
     var duplicate = existingRecords.some(function(r) {
       var rTaskNames = (r.tasks || []).map(function(t) { return t.task; }).sort().join(',');
@@ -1639,60 +1656,78 @@ window.subAtt = async function(e, keepTimestamp) {
     });
     if (duplicate) duplicateNames.push(cleanEmployeeName(en));
   });
+
   if (duplicateNames.length > 0) {
-    await showAlert('⚠️ Đã có bản ghi TRÙNG hoàn toàn (cùng ca + cùng công đoạn):\n\n' + duplicateNames.join(', ') + '\n\nHệ thống đã bỏ qua họ.', 'Cảnh báo trùng');
+    await showAlert(
+      '⚠️ Đã có bản ghi TRÙNG hoàn toàn (cùng ca + cùng công đoạn):\n\n' +
+      duplicateNames.join(', ') +
+      '\n\nHệ thống đã bỏ qua họ.',
+      'Cảnh báo trùng'
+    );
     selectedEmployees = selectedEmployees.filter(function(en) {
       return duplicateNames.indexOf(cleanEmployeeName(en)) === -1;
     });
     if (selectedEmployees.length === 0) return false;
   }
-  for (var i = 0; i < selectedEmployees.length; i++) {
-    var en = selectedEmployees[i];
-    if (!emp.some(function(e) { return removeAccents(e.name.toLowerCase()) === removeAccents(en.toLowerCase()); })) {
-      emp.push({ id: 'e' + Date.now(), name: en });
-      S(EMP_KEY, emp);
-    }
-      // Kiểm tra nếu nhân viên được chọn nhiều hơn 1 công đoạn
-  var hasMultipleTasks = (ts || []).length > 1;
-  
- if (hasMultipleTasks) {
-      var taskList = (ts || []).map(function(t) { return t.task; }).join(', ');
-      var confirmed = false;
-      try {
-     confirmed = await showConfirm(
-          '⚠️ Bạn đang chọn ' + ts.length + ' công đoạn cho nhân viên:\n\n' + 
-          taskList + '\n\n' +
-          'Bạn có chắc chắn muốn lưu?', 
-          'Cảnh báo nhiều công đoạn');
-      }
-      catch(e) {
-    console.error('Lỗi popup:', e);
-    }
-      if (!confirmed) return false;
+
+  // ===== 4. ✅ CONFIRM MỘT LẦN DUY NHẤT (TRƯỚC VÒNG LẶP) =====
+  if (ts.length > 1) {
+    var taskList = ts.map(function(t) { return '• ' + t.task; }).join('\n');
+    var confirmed = await showConfirm(
+      '⚠️ Bạn đang chọn ' + ts.length + ' công đoạn:\n\n' +
+      taskList + '\n\n' +
+      '📌 Sẽ áp dụng cho ' + selectedEmployees.length + ' nhân viên.\n\n' +
+      'Bạn có chắc chắn muốn lưu?',
+      'Xác nhận nhiều công đoạn'
+    );
+    if (!confirmed) return false;
   }
-  
-  rec.push({
-      id: 'rec_' + Date.now() + '_' + i + '_' + Math.random().toString(36).substr(2, 4),
+
+  // ===== 5. THÊM NV MỚI (nếu có) =====
+  var empChanged = false;
+  selectedEmployees.forEach(function(en) {
+    if (!emp.some(function(e) {
+      return removeAccents(e.name.toLowerCase()) === removeAccents(en.toLowerCase());
+    })) {
+      emp.push({ id: 'e' + Date.now() + '_' + Math.random().toString(36).substr(2, 4), name: en });
+      empChanged = true;
+    }
+  });
+  if (empChanged) S(EMP_KEY, emp);
+  var rec = L(REC_KEY, []);
+
+  // ===== 6. PUSH RECORDS (KHÔNG AWAIT TRONG LOOP) =====
+  var now = Date.now();
+  selectedEmployees.forEach(function(en, i) {
+    rec.push({
+      id: 'rec_' + now + '_' + i + '_' + Math.random().toString(36).substr(2, 4),
       employee: en,
-      date: dt.split('T')[0],
+      date: attDateCheck,
       shift: sh,
       eat: et,
       tasks: ts,
       note: note,
       timestamp: timestamp,
-      lastModified: Date.now(),
-      sortOrder: Date.now()
+      lastModified: now,
+      sortOrder: now
     });
-  }
+  });
+
+  // ===== 7. SORT + LƯU =====
   rec.sort(function(a, b) {
     if (a.date !== b.date) return b.date.localeCompare(a.date);
     return new Date(b.timestamp) - new Date(a.timestamp);
   });
   S(REC_KEY, rec);
+
+  // ===== 8. THÔNG BÁO + RESET =====
   log('Chấm công: ' + selectedEmployees.length + ' NV - ' + formatDate(dt));
   var msg = '✅ Đã lưu chấm công cho ' + selectedEmployees.length + ' nhân viên!';
-  if (note) msg += '\n📝 Ghi chú: ' + note.substring(0, 50) + (note.length > 50 ? '...' : '');
+  if (note) {
+    msg += '\n📝 Ghi chú: ' + note.substring(0, 50) + (note.length > 50 ? '...' : '');
+  }
   await showAlert(msg);
+
   rstForm();
   renderStatistics();
   renderMissingEmployees();
@@ -1701,7 +1736,7 @@ window.subAtt = async function(e, keepTimestamp) {
 
 window.rstForm = function() {
   var dateInput = document.getElementById('attDate');
-  var currentDate = dateInput ? dateInput.value : new Date().toISOString().split('T')[0];
+  var currentDate = dateInput ? dateInput.value : getLocalDateStr();
   var activeShiftBtn = document.querySelector('.shift-btn.active');
   var currentShiftIndex = 0;
   if (activeShiftBtn) {
@@ -3614,7 +3649,7 @@ window.togglePersonalDateType = function() {
   if (type === 'date') {
     dateInput.style.display = 'block';
     monthInput.style.display = 'none';
-    if (!dateInput.value) dateInput.value = new Date().toISOString().split('T')[0];
+    if (!dateInput.value) dateInput.value = getLocalDateStr();
   } else if (type === 'month') {
     dateInput.style.display = 'none';
     monthInput.style.display = 'block';
@@ -4125,7 +4160,7 @@ window.exportStatsCSV = function() {
   var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'chamcong_' + new Date().toISOString().split('T')[0] + '.csv';
+  a.download = 'chamcong_' + getLocalDateStr() + '.csv';
   a.click();
   log('Xuất thống kê CSV');
 };
@@ -4193,7 +4228,7 @@ function backupAllData() {
   var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'backup_' + new Date().toISOString().split('T')[0] + '.json';
+  a.download = 'backup_' + getLocalDateStr() + '.json';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -4464,16 +4499,7 @@ function updateClock() {
 }
 
 // ==================== INIT ====================
-function init() {
-    if (!Date.prototype._toISOString) {
-        Date.prototype._toISOString = Date.prototype.toISOString;
-        Date.prototype.toISOString = function() {
-            var offset = 7 * 60 * 60 * 1000;
-            var d = new Date(this.getTime() + offset);
-            return d._toISOString().split('T')[0] + 'T00:00:00.000Z';
-        };
-    }
-    
+function init() {   
     checkAdmin();
     // 👉 Tự động dọn dẹp dữ liệu cũ để bảo vệ bộ nhớ máy
     if (typeof autoCleanOldData === 'function') autoCleanOldData();
@@ -4561,7 +4587,7 @@ function init() {
 
     // 3. Các cài đặt khác
     var attDate = document.getElementById('attDate');
-    if (attDate) attDate.value = new Date().toISOString().split('T')[0];
+    if (attDate) attDate.value = getLocalDateStr();
     
     updateClock();
     setInterval(updateClock, 1000);
@@ -4942,23 +4968,25 @@ window.copyGroupToAnotherDate = async function() {
 
 async function saveToFirebase() {
     try {
-        var allData = {
-            employees: JSON.parse(localStorage.getItem('e') || '[]'),
-            groups: JSON.parse(localStorage.getItem('g') || '[]'),
-            records: JSON.parse(localStorage.getItem('r') || '[]'),
-            hidden_emps: JSON.parse(localStorage.getItem('hidden_emps') || '[]')
-        };
+        var employees = JSON.parse(localStorage.getItem('e') || '[]');
+        var groups = JSON.parse(localStorage.getItem('g') || '[]');
+        var records = JSON.parse(localStorage.getItem('r') || '[]');
+        var hidden_emps = JSON.parse(localStorage.getItem('hidden_emps') || '[]');
         
-        // 1. Lưu data
-        await db.ref('chamcong').set(allData);
+        // ✅ Dùng update() với đường dẫn cụ thể
+        var updates = {};
+        updates['chamcong/employees'] = employees;
+        updates['chamcong/groups'] = groups;
+        updates['chamcong/records'] = records;
+        updates['chamcong/hidden_emps'] = hidden_emps;
+        updates['chamcong/last_updated'] = Date.now();
         
-        // 2. Lưu mốc thời gian riêng ra ngoài (ĐÂY LÀ DÒNG BẠN ĐANG THIẾU)
-        await db.ref('chamcong/last_updated').set(Date.now());
+        await db.ref().update(updates);
         
         showAlert('✅ Đã đồng bộ lên Firebase!');
     } catch(e) {
         console.error('Lỗi lưu Firebase:', e);
-        showAlert('❌ Lỗi đồng bộ Firebase!');
+        showAlert('❌ Lỗi đồng bộ Firebase: ' + e.message);
     }
 }
 
@@ -5808,3 +5836,230 @@ window.loadOldMonthData = async function(monthStr) {
         showAlert('❌ Lỗi: ' + error.message);
     }
 };
+// ==================== FETCH RECORDS BY TIME ====================
+// Tự động tải records của 1 tháng cụ thể từ Firebase
+// Chỉ tải khi máy CHƯA có data của tháng đó
+// Cache trong 5 phút để tránh spam
+
+var _fetchCache = {};  // Cache các tháng đã tải trong phiên này
+
+window.fetchRecordsByTime = async function(monthStr) {
+    // ===== 1. VALIDATE =====
+    if (!monthStr || typeof monthStr !== 'string') return;
+    
+    // Chỉ chấp nhận format YYYY-MM
+    if (!/^\d{4}-\d{2}$/.test(monthStr)) {
+        console.warn('⚠️ fetchRecordsByTime: monthStr không hợp lệ:', monthStr);
+        return;
+    }
+    
+    // ===== 2. KIỂM TRA FIREBASE CÓ SẴN SÀNG KHÔNG =====
+    if (typeof db === 'undefined' || !db) {
+        console.warn('⚠️ Firebase chưa sẵn sàng');
+        return;
+    }
+    
+    // ===== 3. KIỂM TRA CACHE TRONG PHIÊN (tránh spam) =====
+    var cacheKey = 'fetch_' + monthStr;
+    var lastFetch = _fetchCache[cacheKey] || 0;
+    var now = Date.now();
+    if (now - lastFetch < 5 * 60 * 1000) {  // 5 phút
+        console.log('⚡ Đã tải tháng ' + monthStr + ' gần đây, bỏ qua');
+        return;
+    }
+    
+    // ===== 4. KIỂM TRA MÁY ĐÃ CÓ DATA THÁNG NÀY CHƯA =====
+    var currentRecs = L(REC_KEY, []);
+    var hasData = currentRecs.some(function(r) {
+        return r.date && r.date.startsWith(monthStr);
+    });
+    
+    if (hasData) {
+        console.log('✅ Máy đã có data tháng ' + monthStr + ', không cần tải');
+        return;  // Đã có data → không cần tải
+    }
+    
+    // ===== 5. BẮT ĐẦU TẢI TỪ FIREBASE =====
+    console.log('⏳ Đang tải data tháng ' + monthStr + ' từ Firebase...');
+    
+    // Tạo thông báo loading (không block UI)
+    var loadingToast = document.createElement('div');
+    loadingToast.id = 'fetchLoadingToast';
+    loadingToast.style.cssText = 
+        'position:fixed; bottom:20px; left:50%; transform:translateX(-50%);' +
+        'background:#3b82f6; color:white; padding:12px 24px; border-radius:8px;' +
+        'font-size:14px; font-weight:600; z-index:99999;' +
+        'box-shadow:0 4px 12px rgba(0,0,0,0.2); transition:opacity 0.3s;';
+    loadingToast.textContent = '⏳ Đang tải data tháng ' + monthStr + '...';
+    document.body.appendChild(loadingToast);
+    
+    try {
+        // ===== 6. GỌI FIREBASE =====
+        var startDate = monthStr + '-01';
+        var endDate = monthStr + '-31';  // Firebase sẽ trả về hết tháng
+        
+        var snapshot = await db.ref('chamcong/records')
+            .orderByChild('date')
+            .startAt(startDate)
+            .endAt(endDate)
+            .once('value');
+        
+        var data = snapshot.val();
+        
+        // ===== 7. XỬ LÝ KẾT QUẢ =====
+        if (!data) {
+            // Không có data → thông báo nhẹ
+            loadingToast.style.background = '#f59e0b';
+            loadingToast.textContent = '📭 Tháng ' + monthStr + ' chưa có dữ liệu';
+            setTimeout(function() {
+                loadingToast.style.opacity = '0';
+                setTimeout(function() { loadingToast.remove(); }, 300);
+            }, 2000);
+            
+            _fetchCache[cacheKey] = now;
+            return;
+        }
+        
+        // Convert object → array (Firebase có thể trả object)
+        var newRecs = Array.isArray(data) ? data : Object.values(data);
+        
+        if (newRecs.length === 0) {
+            loadingToast.style.background = '#f59e0b';
+            loadingToast.textContent = '📭 Tháng ' + monthStr + ' chưa có dữ liệu';
+            setTimeout(function() {
+                loadingToast.style.opacity = '0';
+                setTimeout(function() { loadingToast.remove(); }, 300);
+            }, 2000);
+            
+            _fetchCache[cacheKey] = now;
+            return;
+        }
+        
+        // ===== 8. MERGE VÀO DỮ LIỆU HIỆN TẠI (DEDUP THEO ID) =====
+        var allRecs = currentRecs.concat(newRecs);
+        var uniqueRecs = [];
+        var seenIds = new Set();
+        
+        allRecs.forEach(function(r) {
+            // Bỏ qua record không có id
+            if (!r || !r.id) return;
+            
+            // Nếu đã có → so sánh lastModified, giữ bản mới hơn
+            if (seenIds.has(r.id)) {
+                var existingIdx = uniqueRecs.findIndex(function(x) { return x.id === r.id; });
+                if (existingIdx > -1) {
+                    var existing = uniqueRecs[existingIdx];
+                    if ((r.lastModified || 0) > (existing.lastModified || 0)) {
+                        uniqueRecs[existingIdx] = r;
+                    }
+                }
+                return;
+            }
+            
+            seenIds.add(r.id);
+            uniqueRecs.push(r);
+        });
+        
+        // ===== 9. SẮP XẾP LẠI (giống logic sort của subAtt) =====
+        uniqueRecs.sort(function(a, b) {
+            if (a.date !== b.date) return b.date.localeCompare(a.date);
+            return new Date(b.timestamp || 0) - new Date(a.timestamp || 0);
+        });
+        
+        // ===== 10. LƯU VÀO LOCALSTORAGE =====
+        localStorage.setItem('r', JSON.stringify(uniqueRecs));
+        
+        // Cập nhật biến global
+        if (window._statsData) {
+            window._statsData = uniqueRecs;
+        }
+        
+        console.log('✅ Đã tải ' + newRecs.length + ' bản ghi tháng ' + monthStr + 
+                    '. Tổng cộng máy có: ' + uniqueRecs.length + ' bản ghi');
+        
+        // ===== 11. THÔNG BÁO THÀNH CÔNG =====
+        loadingToast.style.background = '#10b981';
+        loadingToast.textContent = '✅ Đã tải ' + newRecs.length + ' bản ghi tháng ' + monthStr;
+        setTimeout(function() {
+            loadingToast.style.opacity = '0';
+            setTimeout(function() { loadingToast.remove(); }, 300);
+        }, 1500);
+        
+        // ===== 12. RENDER LẠI PHẦN ĐANG XEM (không reload toàn bộ) =====
+        _rerenderCurrentView();
+        
+        // ===== 13. CACHE =====
+        _fetchCache[cacheKey] = now;
+        
+    } catch (error) {
+        console.error('❌ Lỗi tải tháng ' + monthStr + ':', error);
+        
+        loadingToast.style.background = '#ef4444';
+        loadingToast.textContent = '❌ Lỗi tải data: ' + (error.message || 'Không rõ');
+        setTimeout(function() {
+            loadingToast.style.opacity = '0';
+            setTimeout(function() { loadingToast.remove(); }, 300);
+        }, 3000);
+    }
+};
+
+// ==================== RE-RENDER VIEW THÔNG MINH ====================
+// Sau khi tải data mới → render lại phần đang xem mà không reload trang
+function _rerenderCurrentView() {
+    // Nếu đang ở tab Thống kê → render lại
+    var statsPage = document.getElementById('pageThongKe');
+    if (statsPage && statsPage.style.display !== 'none') {
+        // Tìm sub-tab đang active
+        var activeSubTab = document.querySelector('#statsContent .sub-tab.active');
+        if (activeSubTab) {
+            var tabText = activeSubTab.textContent.trim();
+            
+            if (tabText.includes('Tổng Quan')) {
+                // Đang ở dashboard → chỉ update statsData + applyFilters
+                window._statsData = L(REC_KEY, []);
+                if (typeof applyStatsFilters === 'function') {
+                    applyStatsFilters();
+                }
+            } else if (tabText.includes('Theo Ca')) {
+                // Đang ở Tab Theo Ca → reload ranking
+                if (typeof loadShiftRanking === 'function') {
+                    loadShiftRanking();
+                }
+            } else if (tabText.includes('Theo CĐ')) {
+                // Đang ở Tab Theo CĐ → reload nếu đã chọn công đoạn
+                var taskSelect = document.getElementById('taskDetailSelect');
+                if (taskSelect && taskSelect.value) {
+                    if (typeof loadTaskDetail === 'function') loadTaskDetail();
+                }
+            } else if (tabText.includes('Tăng ca')) {
+                // Đang ở Tab Tăng ca → reload
+                if (typeof loadDoubleShiftRanking === 'function') {
+                    loadDoubleShiftRanking();
+                }
+            } else if (tabText.includes('Cặp đôi')) {
+                // Đang ở Tab Cặp đôi → reload
+                if (typeof showPairRanking === 'function') {
+                    showPairRanking();
+                }
+            }
+        }
+    }
+    
+    // Nếu đang ở tab Cá nhân → reload
+    var personalPage = document.getElementById('pageCaNhan');
+    if (personalPage && personalPage.style.display !== 'none') {
+        if (typeof loadPersonalRecords === 'function') {
+            loadPersonalRecords();
+        }
+    }
+    
+    // Nếu đang ở tab Chấm công → update "Nhân viên chưa chấm"
+    var attPage = document.getElementById('pageChamCong');
+    if (attPage && attPage.style.display !== 'none') {
+        if (typeof renderMissingEmployees === 'function') {
+            renderMissingEmployees();
+        }
+    }
+}
+
+console.log('✅ fetchRecordsByTime và _rerenderCurrentView đã sẵn sàng');

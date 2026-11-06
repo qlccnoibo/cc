@@ -41,49 +41,55 @@
             reader.readAsText(file);
         });
 
-        function restoreData() {
-            var status = document.getElementById('status');
-            var text = document.getElementById('jsonText').value.trim();
-            
-            if (!text) {
-                status.innerText = "⚠️ Vui lòng chọn file hoặc dán nội dung JSON!";
-                status.style.color = "red";
-                status.style.background = "#fee2e2";
-                return;
-            }
+       function restoreData() {
+    var status = document.getElementById('status');
+    var text = document.getElementById('jsonText').value.trim();
+    
+    if (!text) {
+        status.innerText = "⚠️ Vui lòng chọn file hoặc dán nội dung JSON!";
+        status.style.color = "red";
+        status.style.background = "#fee2e2";
+        return;
+    }
 
-            try {
-                var data = JSON.parse(text);
-                
-                // Lưu trực tiếp vào bộ nhớ điện thoại
-                localStorage.setItem('e', JSON.stringify(data.employees || []));
-                localStorage.setItem('g', JSON.stringify(data.groups || []));
-                localStorage.setItem('r', JSON.stringify(data.records || []));
-                if (data.hidden_emps) {
-                    localStorage.setItem('hidden_emps', JSON.stringify(data.hidden_emps));
-                }
-                
-                // Đánh dấu để không bị Firebase gọi đè lên
-                localStorage.setItem('is_fully_loaded', 'true');
-                localStorage.setItem('last_seen_update', Date.now().toString());
-                
-                status.innerText = "✅ THÀNH CÔNG! Đã nạp " + (data.records ? data.records.length : 0) + " bản ghi. Hãy quay lại trang chủ.";
-                status.style.color = "green";
-                status.style.background = "#dcfce7";
-                
-                // Hiện nút quay lại
-                setTimeout(function() {
-                    if(confirm("Phục hồi thành công! Bấm OK để quay lại trang chủ.")) {
-                        window.location.href = "https://qlccnoibo.github.io/cc/";
-                    }
-                }, 1000);
-                
-            } catch (err) {
-                status.innerText = "❌ Lỗi đọc JSON: " + err.message;
-                status.style.color = "red";
-                status.style.background = "#fee2e2";
-            }
+    try {
+        var data = JSON.parse(text);
+        
+        // ✅ Lưu trực tiếp vào localStorage
+        localStorage.setItem('e', JSON.stringify(data.employees || []));
+        localStorage.setItem('g', JSON.stringify(data.groups || []));
+        localStorage.setItem('r', JSON.stringify(data.records || []));
+        
+        // ✅ DÒNG THÊM MỚI — Khôi phục shifts
+        if (data.shifts) {
+            localStorage.setItem('s', JSON.stringify(data.shifts));
         }
+        
+        if (data.hidden_emps) {
+            localStorage.setItem('hidden_emps', JSON.stringify(data.hidden_emps));
+        }
+        
+        // Đánh dấu để không bị Firebase gọi đè lên
+        localStorage.setItem('is_fully_loaded', 'true');
+        localStorage.setItem('last_seen_update', Date.now().toString());
+        
+        status.innerText = "✅ THÀNH CÔNG! Đã nạp " + (data.records ? data.records.length : 0) + " bản ghi. Hãy quay lại trang chủ.";
+        status.style.color = "green";
+        status.style.background = "#dcfce7";
+        
+        // Hiện nút quay lại
+        setTimeout(function() {
+            if(confirm("Phục hồi thành công! Bấm OK để quay lại trang chủ.")) {
+                window.location.href = "https://qlccnoibo.github.io/cc/";
+            }
+        }, 1000);
+        
+    } catch (err) {
+        status.innerText = "❌ Lỗi đọc JSON: " + err.message;
+        status.style.color = "red";
+        status.style.background = "#fee2e2";
+    }
+}
     </script>
 </body>
 </html>

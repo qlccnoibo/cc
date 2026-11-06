@@ -317,7 +317,9 @@ if ('serviceWorker' in navigator) {
         .catch(function(e) { console.error('❌ Lỗi SW:', e); });
 }
 </script>
-  <!-- JavaScript -->
-  <script src="app.js?v=388"></script>
+  <!-- Utils — PHẢI ĐỨNG TRƯỚC app.js -->
+  <script src="utils.js"></script>
+  <!-- JavaScript chính -->
+  <script src="app.js?v=399"></script>
 </body>
 </html>
