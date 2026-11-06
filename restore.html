@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Restore Data</title></head>
+<body style="padding: 20px; font-family: sans-serif;">
+    <h2>Phục hồi dữ liệu vào máy</h2>
+    <input type="file" id="fileInput" accept=".json" style="margin-bottom: 20px;" />
+    <div id="status" style="color: green; font-weight: bold;"></div>
+
+    <script>
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            var file = e.target.files[0];
+            if (!file) return;
+            var reader = new FileReader();
+            reader.onload = function(event) {
+                try {
+                    var data = JSON.parse(event.target.result);
+                    
+                    // Ghi đè toàn bộ vào LocalStorage của máy
+                    localStorage.setItem('e', JSON.stringify(data.employees || []));
+                    localStorage.setItem('g', JSON.stringify(data.groups || []));
+                    localStorage.setItem('r', JSON.stringify(data.records || []));
+                    if (data.hidden_emps) localStorage.setItem('hidden_emps', JSON.stringify(data.hidden_emps));
+                    
+                    // Báo hiệu cho web chính biết là đã có dữ liệu, không cần tải từ Firebase nữa
+                    localStorage.setItem('is_fully_loaded', 'true');
+                    localStorage.setItem('last_seen_update', Date.now().toString());
+                    
+                    document.getElementById('status').innerText = "✅ Đã nạp thành công " + (data.records ? data.records.length : 0) + " bản ghi! Hãy quay lại trang chủ web.";
+                    document.getElementById('status').style.color = 'green';
+                } catch (err) {
+                    document.getElementById('status').innerText = "❌ Lỗi đọc file: " + err.message;
+                    document.getElementById('status').style.color = 'red';
+                }
+            };
+            reader.readAsText(file);
+        });
+    </script>
+</body>
+</html>
