@@ -4512,77 +4512,78 @@ function init() {
     var empCount = document.getElementById('empCount');
     if (empCount) empCount.textContent = emp.length + ' NV';
 
-        // 2. Tải dữ liệu từ Firebase (Cơ chế thông minh: Chỉ tải 1 lần)
+    // 2. Tải dữ liệu từ Firebase (Cơ chế thông minh: Chỉ tải 1 lần)
     if (!isAdmin && typeof db !== 'undefined') {
-        
-        // 👉 KIỂM TRA THÔNG BÁO DỮ LIỆU MỚI (Hiện chấm đỏ)
-        db.ref('chamcong/last_updated').on('value', function(snap) {
-            var lastUpdated = snap.val();
-            var lastSeen = parseInt(localStorage.getItem('last_seen_update') || '0');
-            var badge = document.getElementById('updateBadge');
+        // ✅ Chỉ tạo 1 listener duy nhất, không bao giờ tạo thêm
+        if (!window._lastUpdatedListenerAttached) {
+            window._lastUpdatedListenerAttached = true;
             
-            if (lastUpdated && lastUpdated > lastSeen) {
-                // Có dữ liệu mới -> Hiện chấm đỏ
-                if (badge) badge.style.display = 'inline-block';
-            } else {
-                // Không có dữ liệu mới -> Ẩn chấm đỏ
-                if (badge) badge.style.display = 'none';
-            }
-        });
-
-        // 👉 KIỂM TRA: Nếu máy đã có dữ liệu rồi thì KHÔNG tải lại từ Firebase nữa (Tiết kiệm 1GB)
-        var currentData = localStorage.getItem('r');
-        
-        if (!currentData || currentData === '[]') {
-            // Hiển thị thông báo đang tải (Chỉ hiện lần đầu)
-            var statusDiv = document.createElement('div');
-            statusDiv.id = 'fbStatus';
-            statusDiv.style.cssText = 'position:fixed; top:0; left:0; right:0; background:#3b82f6; color:white; padding:8px; font-size:12px; z-index:99999; text-align:center; font-weight:bold;';
-            statusDiv.textContent = '⏳ Đang tải toàn bộ dữ liệu từ Firebase...';
-            document.body.appendChild(statusDiv);
-
-            // Tải TOÀN BỘ dữ liệu từ node 'chamcong'
-            db.ref('chamcong').once('value').then(function(snapshot) {
-                var data = snapshot.val();
-                if (data) {
-                    if (data.employees) {
-                        localStorage.setItem('e', JSON.stringify(data.employees));
-                    }
-                    if (data.groups) {
-                        var gArr = Array.isArray(data.groups) ? data.groups : Object.values(data.groups);
-                        localStorage.setItem('g', JSON.stringify(gArr));
-                    }
-                    if (data.records) {
-                        var allRecs = Array.isArray(data.records) ? data.records : Object.values(data.records);
-                        localStorage.setItem('r', JSON.stringify(allRecs));
-                        console.log('✅ Đã tải TOÀN BỘ ' + allRecs.length + ' bản ghi từ Firebase');
-                    }
-                    if (data.hidden_emps) {
-                        localStorage.setItem('hidden_emps', JSON.stringify(data.hidden_emps));
-                    }
-
-                    statusDiv.style.background = '#10b981'; // Màu xanh lá
-                    statusDiv.textContent = '✅ Đã tải xong toàn bộ dữ liệu!';
-                    setTimeout(function() { statusDiv.remove(); }, 3000);
-                    
-                    // Render lại toàn bộ giao diện
-                    if (typeof refreshAllUI === 'function') refreshAllUI();
-                    if (typeof rEmp === 'function') rEmp();
-                    if (typeof renderStatistics === 'function') renderStatistics();
+            window._lastUpdatedListener = db.ref('chamcong/last_updated').on('value', function(snap) {
+                var lastUpdated = snap.val();
+                var lastSeen = parseInt(localStorage.getItem('last_seen_update') || '0');
+                var badge = document.getElementById('updateBadge');
+                
+                if (lastUpdated && lastUpdated > lastSeen) {
+                    if (badge) badge.style.display = 'inline-block';
                 } else {
-                    statusDiv.style.background = '#ef4444';
-                    statusDiv.textContent = '❌ Firebase trống hoặc lỗi dữ liệu!';
+                    if (badge) badge.style.display = 'none';
                 }
-            }).catch(function(e) {
-                statusDiv.style.background = '#ef4444';
-                statusDiv.textContent = '❌ Lỗi Firebase: ' + e.message;
-                console.error(e);
             });
-        } else {
-            // 👉 Nếu máy đã có dữ liệu, chỉ hiển thị lên, KHÔNG tải từ Firebase
-            console.log('⚡ Đã có dữ liệu trong máy, không tải từ Firebase để tiết kiệm 1GB.');
-            if (typeof refreshAllUI === 'function') refreshAllUI();
         }
+    }
+    
+    // 👉 KIỂM TRA: Nếu máy đã có dữ liệu rồi thì KHÔNG tải lại từ Firebase nữa (Tiết kiệm 1GB)
+    var currentData = localStorage.getItem('r');
+    
+    if (!currentData || currentData === '[]') {
+        // Hiển thị thông báo đang tải (Chỉ hiện lần đầu)
+        var statusDiv = document.createElement('div');
+        statusDiv.id = 'fbStatus';
+        statusDiv.style.cssText = 'position:fixed; top:0; left:0; right:0; background:#3b82f6; color:white; padding:8px; font-size:12px; z-index:99999; text-align:center; font-weight:bold;';
+        statusDiv.textContent = '⏳ Đang tải toàn bộ dữ liệu từ Firebase...';
+        document.body.appendChild(statusDiv);
+
+        // Tải TOÀN BỘ dữ liệu từ node 'chamcong'
+        db.ref('chamcong').once('value').then(function(snapshot) {
+            var data = snapshot.val();
+            if (data) {
+                if (data.employees) {
+                    localStorage.setItem('e', JSON.stringify(data.employees));
+                }
+                if (data.groups) {
+                    var gArr = Array.isArray(data.groups) ? data.groups : Object.values(data.groups);
+                    localStorage.setItem('g', JSON.stringify(gArr));
+                }
+                if (data.records) {
+                    var allRecs = Array.isArray(data.records) ? data.records : Object.values(data.records);
+                    localStorage.setItem('r', JSON.stringify(allRecs));
+                    console.log('✅ Đã tải TOÀN BỘ ' + allRecs.length + ' bản ghi từ Firebase');
+                }
+                if (data.hidden_emps) {
+                    localStorage.setItem('hidden_emps', JSON.stringify(data.hidden_emps));
+                }
+
+                statusDiv.style.background = '#10b981'; // Màu xanh lá
+                statusDiv.textContent = '✅ Đã tải xong toàn bộ dữ liệu!';
+                setTimeout(function() { statusDiv.remove(); }, 3000);
+                
+                // Render lại toàn bộ giao diện
+                if (typeof refreshAllUI === 'function') refreshAllUI();
+                if (typeof rEmp === 'function') rEmp();
+                if (typeof renderStatistics === 'function') renderStatistics();
+            } else {
+                statusDiv.style.background = '#ef4444';
+                statusDiv.textContent = '❌ Firebase trống hoặc lỗi dữ liệu!';
+            }
+        }).catch(function(e) {
+            statusDiv.style.background = '#ef4444';
+            statusDiv.textContent = '❌ Lỗi Firebase: ' + e.message;
+            console.error(e);
+        });
+    } else {
+        // 👉 Nếu máy đã có dữ liệu, chỉ hiển thị lên, KHÔNG tải từ Firebase
+        console.log('⚡ Đã có dữ liệu trong máy, không tải từ Firebase để tiết kiệm 1GB.');
+        if (typeof refreshAllUI === 'function') refreshAllUI();
     }
 
     // 3. Các cài đặt khác
@@ -6063,3 +6064,20 @@ function _rerenderCurrentView() {
 }
 
 console.log('✅ fetchRecordsByTime và _rerenderCurrentView đã sẵn sàng');
+
+// ✅ Cleanup listeners khi user rời trang
+window.addEventListener('beforeunload', function() {
+    if (window._lastUpdatedListener) {
+        db.ref('chamcong/last_updated').off('value', window._lastUpdatedListener);
+        window._lastUpdatedListener = null;
+    }
+});
+
+// ✅ Fallback: Đóng tất cả listeners nếu cần
+window.addEventListener('pagehide', function() {
+    if (typeof db !== 'undefined' && db) {
+        try {
+            db.ref('chamcong/last_updated').off();
+        } catch(e) {}
+    }
+});
