@@ -2304,6 +2304,10 @@ window.changeHeatmapMonth = function(delta) {
     newYear++; }
   heatmapState.year = newYear;
   heatmapState.month = newMonth;
+      var monthStr = heatmapState.year + '-' + String(heatmapState.month).padStart(2, '0');
+    if (typeof loadOldMonthData === 'function') {
+        loadOldMonthData(monthStr);
+    }
   applyStatsFilters();
 };
 
@@ -3925,6 +3929,11 @@ if (dateType === 'year' && yearVal) {
   if (!personalRecs.length) {
     recordsEl.innerHTML = '<div class="muted" style="text-align:center;padding:16px;margin-top:12px;">Không có bản ghi nào phù hợp</div>';
   } else {
+    // 👉 KIỂM TRA: Ẩn chi tiết nếu xem theo Năm, Quý, hoặc 6 Tháng
+    if (dateType === 'year' || dateType === 'quarter' || dateType === 'first-half' || dateType === 'second-half') {
+        recordsEl.innerHTML = ''; // Xóa trống phần chi tiết
+        return; // Thoát hàm, không tạo bảng chi tiết nữa
+    }
     var allRecords = L(REC_KEY, []);
     var html = '<div style="margin-top:12px;"><h4 style="margin:0 0 10px 0;">📋 Chi tiết chấm công</h4><div style="overflow-x:auto"><table class="stats-table-compact"><tr><th>Ngày</th><th>Ca</th><th>Công đoạn</th><th>Đồng nghiệp</th><th>Ăn</th><th>Ghi chú</th></tr>';
     personalRecs.forEach(function(recItem) {
@@ -5716,6 +5725,61 @@ window.autoCleanOldData = function() {
     // Nếu số lượng bản ghi bị giảm đi (có dữ liệu cũ bị xóa)
     if (trimmedRecs.length < currentRecs.length) {
         localStorage.setItem('r', JSON.stringify(trimmedRecs));
-        console.log('🧹 Đã tự động dọn dẹp! Đã xóa ' + (currentRecs.length - trimmedRecs.length) + ' bản ghi cũ. Còn lại: ' + trimmedRecs.length);
+        console.log('🧹 Đã tự động dọn dẹp! Đã xóa ' + (currentRecs.length - trimmedRecs.length) + ' bản ghi cũ (các tháng trước).');
+    }
+};
+
+// Hàm tải dữ liệu của một tháng cụ thể từ Firebase (Khi xem lại tháng cũ)
+window.loadOldMonthData = async function(monthStr) {
+    if (!monthStr || typeof db === 'undefined') return;
+    
+    // Kiểm tra xem máy đã có dữ liệu tháng này chưa
+    var currentRecs = JSON.parse(localStorage.getItem('r') || '[]');
+    var hasData = currentRecs.some(function(r) { return r.date.startsWith(monthStr); });
+    
+    // Nếu có rồi thì không tải nữa
+    if (hasData) return; 
+
+    showAlert('⏳ Đang tải dữ liệu tháng ' + monthStr + ' từ Firebase...');
+    
+    try {
+        // Chỉ tải đúng dữ liệu của tháng đó (VD: date >= '2026-05-01' và <= '2026-05-31')
+        var snapshot = await db.ref('chamcong/records')
+            .orderByChild('date')
+            .startAt(monthStr + '-01')
+            .endAt(monthStr + '-31')
+            .once('value');
+            
+        var data = snapshot.val();
+        if (data) {
+            var newRecs = Object.values(data);
+            
+            // Gộp dữ liệu tháng cũ vào máy
+            var allRecs = currentRecs.concat(newRecs);
+            
+            // Lọc trùng
+            var uniqueRecs = [];
+            var seenIds = new Set();
+            allRecs.forEach(function(r) {
+                if (r.id && !seenIds.has(r.id)) {
+                    seenIds.add(r.id);
+                    uniqueRecs.push(r);
+                }
+            });
+            
+            localStorage.setItem('r', JSON.stringify(uniqueRecs));
+            console.log('✅ Đã tải thêm ' + newRecs.length + ' bản ghi của tháng ' + monthStr);
+            
+            // Render lại giao diện để hiển thị dữ liệu mới
+            if (typeof refreshAllUI === 'function') refreshAllUI();
+            if (typeof renderStatistics === 'function') renderStatistics();
+            if (typeof applyStatsFilters === 'function') applyStatsFilters();
+            
+        } else {
+            console.log('⚠️ Không có dữ liệu tháng này');
+        }
+    } catch (error) {
+        console.error('Lỗi tải tháng cũ:', error);
+        showAlert('❌ Lỗi: ' + error.message);
     }
 };

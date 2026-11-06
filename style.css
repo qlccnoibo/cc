@@ -2364,3 +2364,30 @@ body.admin-mode .employee-only {
     0% { transform: translateX(0); }
     100% { transform: translateX(-100%); }
 }
+
+/* Chấm đỏ thông báo trên nút Cập nhật */
+.update-btn-wrapper {
+    position: relative;
+    display: inline-block;
+    margin-left: auto;
+}
+
+.badge-notify {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: #ef4444; /* Màu đỏ */
+    color: white;
+    font-size: 10px;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 10px;
+    border: 2px solid #0f172a; /* Viền cùng màu nền header */
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+}
