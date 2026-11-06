@@ -5795,26 +5795,26 @@ window.autoCleanOldData = function() {
 window.loadOldMonthData = async function(monthStr) {
     if (!monthStr || typeof db === 'undefined') return;
     
-    // Kiểm tra xem máy đã có dữ liệu tháng này chưa
     var currentRecs = JSON.parse(localStorage.getItem('r') || '[]');
-    var hasData = currentRecs.some(function(r) { return r.date.startsWith(monthStr); });
-    
-    // Nếu có rồi thì không tải nữa
+    var hasData = currentRecs.some(function(r) { return r.date && r.date.startsWith(monthStr); });
     if (hasData) return; 
 
     showAlert('⏳ Đang tải dữ liệu tháng ' + monthStr + ' từ Firebase...');
     
     try {
-        // Chỉ tải đúng dữ liệu của tháng đó (VD: date >= '2026-05-01' và <= '2026-05-31')
+        // ✅ TÌM KIẾM THEO NGÀY (date) - Vì date của bạn rất chuẩn
+        var startDate = monthStr + '-01';
+        var endDate = monthStr + '-31'; 
+
         var snapshot = await db.ref('chamcong/records')
             .orderByChild('date')
-            .startAt(monthStr + '-01')
-            .endAt(monthStr + '-31')
+            .startAt(startDate)
+            .endAt(endDate)
             .once('value');
             
         var data = snapshot.val();
         if (data) {
-            var newRecs = Object.values(data);
+            var newRecs = Array.isArray(data) ? data : Object.values(data);
             
             // Gộp dữ liệu tháng cũ vào máy
             var allRecs = currentRecs.concat(newRecs);
@@ -5832,19 +5832,17 @@ window.loadOldMonthData = async function(monthStr) {
             localStorage.setItem('r', JSON.stringify(uniqueRecs));
             console.log('✅ Đã tải thêm ' + newRecs.length + ' bản ghi của tháng ' + monthStr);
             
-            // Render lại giao diện để hiển thị dữ liệu mới
             if (typeof refreshAllUI === 'function') refreshAllUI();
             if (typeof renderStatistics === 'function') renderStatistics();
             if (typeof applyStatsFilters === 'function') applyStatsFilters();
             
-        } else {
-            console.log('⚠️ Không có dữ liệu tháng này');
         }
     } catch (error) {
         console.error('Lỗi tải tháng cũ:', error);
         showAlert('❌ Lỗi: ' + error.message);
     }
 };
+
 // ==================== FETCH RECORDS BY TIME ====================
 // Tự động tải records của 1 tháng cụ thể từ Firebase
 // Chỉ tải khi máy CHƯA có data của tháng đó
