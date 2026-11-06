@@ -4202,40 +4202,65 @@ function backupAllData() {
 }
 
 async function restoreAllData() {
-  if (!await showConfirm('⚠️ KHÔI PHỤC sẽ ghi đè TẤT CẢ dữ liệu hiện tại!', '⚠️ Cảnh báo')) return;
-  var input = document.createElement('input');
-  input.type = 'file';
-  input.accept = '.json';
-  input.onchange = async function(e) {
-    var file = e.target.files[0];
-    if (!file) return;
-    try {
-      var text = await readFileAsText(file);
-      var data = JSON.parse(text);
-      if (!data.version) throw new Error('File backup không hợp lệ');
-      S(EMP_KEY, data.employees);
-      S(SHIFT_KEY, data.shifts);
-      S(GROUP_KEY, data.groups);
-      S(REC_KEY, data.records);
-      S(AUDIT_KEY, data.audit || []);
-      emp = data.employees;
-      shifts = data.shifts;
-      groups = data.groups;
-      expanded = {};
-      rEmp();
-      rShifts();
-      rGFull();
-      rGCompact();
-      rShiftList();
-      renderAudit();
-      renderStatistics();
-      log('Khôi phục dữ liệu');
-      await showAlert('✅ Đã khôi phục thành công!');
-    } catch (err) {
-      await showAlert('❌ Lỗi: ' + err.message);
-    }
-  };
-  input.click();
+    if (!await showConfirm('⚠️ KHÔI PHỤC sẽ ghi đè TẤT CẢ dữ liệu hiện tại!\nBạn có chắc chắn muốn tiếp tục?', '⚠️ Cảnh báo')) return;
+    
+    var input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    
+    input.onchange = function(e) {
+        var file = e.target.files[0];
+        if (!file) return;
+        
+        var reader = new FileReader();
+        reader.onload = async function(event) {
+            try {
+                var data = JSON.parse(event.target.result);
+                
+                // Kiểm tra file có dữ liệu cốt lõi không
+                if (!data.employees || !data.records) {
+                    throw new Error('File backup bị thiếu dữ liệu nhân viên hoặc bản ghi!');
+                }
+                
+                // 1. Lưu TRỰC TIẾP vào bộ nhớ máy (Không qua Firebase để tránh lỗi mạng)
+                localStorage.setItem('e', JSON.stringify(data.employees));
+                localStorage.setItem('s', JSON.stringify(data.shifts || shifts));
+                localStorage.setItem('g', JSON.stringify(data.groups || groups));
+                localStorage.setItem('r', JSON.stringify(data.records));
+                localStorage.setItem('a', JSON.stringify(data.audit || []));
+                if (data.hidden_emps) {
+                    localStorage.setItem('hidden_emps', JSON.stringify(data.hidden_emps));
+                }
+                
+                // 2. Cập nhật lại biến toàn cục
+                emp = data.employees;
+                shifts = data.shifts || shifts;
+                groups = data.groups || groups;
+                
+                // 3. Đánh dấu là đã có dữ liệu để không bị Firebase ghi đè
+                localStorage.setItem('is_fully_loaded', 'true');
+                localStorage.setItem('last_seen_update', Date.now().toString());
+
+                // 4. Render lại giao diện
+                if (typeof rEmp === 'function') rEmp();
+                if (typeof rShifts === 'function') rShifts();
+                if (typeof rGFull === 'function') rGFull();
+                if (typeof rGCompact === 'function') rGCompact();
+                if (typeof renderStatistics === 'function') renderStatistics();
+                if (typeof applyStatsFilters === 'function') applyStatsFilters();
+                
+                await showAlert('✅ Đã khôi phục thành công ' + data.records.length + ' bản ghi chấm công!');
+                
+                // Tự động tải lại trang để đảm bảo mọi thứ đồng bộ
+                setTimeout(function() { location.reload(); }, 1500);
+                
+            } catch (err) {
+                await showAlert('❌ Lỗi phục hồi: ' + err.message);
+            }
+        };
+        reader.readAsText(file);
+    };
+    input.click();
 }
 
 // ==================== UPLOAD TO GITHUB ====================
