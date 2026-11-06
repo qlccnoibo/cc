@@ -4532,7 +4532,7 @@ function init() {
         }
     }
     
-    // 👉 KIỂM TRA: Nếu máy đã có dữ liệu rồi thì KHÔNG tải lại từ Firebase nữa (Tiết kiệm 1GB)
+    // 👉 KIỂM TRA: Nếu máy đã có dữ liệu rồi thì KHÔNG tải lại từ Firebase nữa
     var currentData = localStorage.getItem('r');
     
     if (!currentData || currentData === '[]') {
@@ -4540,41 +4540,49 @@ function init() {
         var statusDiv = document.createElement('div');
         statusDiv.id = 'fbStatus';
         statusDiv.style.cssText = 'position:fixed; top:0; left:0; right:0; background:#3b82f6; color:white; padding:8px; font-size:12px; z-index:99999; text-align:center; font-weight:bold;';
-        statusDiv.textContent = '⏳ Đang tải toàn bộ dữ liệu từ Firebase...';
+        statusDiv.textContent = '⏳ Đang tải dữ liệu cơ bản từ Firebase...';
         document.body.appendChild(statusDiv);
 
-        // Tải TOÀN BỘ dữ liệu từ node 'chamcong'
-        db.ref('chamcong').once('value').then(function(snapshot) {
-            var data = snapshot.val();
-            if (data) {
-                if (data.employees) {
-                    localStorage.setItem('e', JSON.stringify(data.employees));
-                }
-                if (data.groups) {
-                    var gArr = Array.isArray(data.groups) ? data.groups : Object.values(data.groups);
-                    localStorage.setItem('g', JSON.stringify(gArr));
-                }
-                if (data.records) {
-                    var allRecs = Array.isArray(data.records) ? data.records : Object.values(data.records);
-                    localStorage.setItem('r', JSON.stringify(allRecs));
-                    console.log('✅ Đã tải TOÀN BỘ ' + allRecs.length + ' bản ghi từ Firebase');
-                }
-                if (data.hidden_emps) {
-                    localStorage.setItem('hidden_emps', JSON.stringify(data.hidden_emps));
-                }
-
-                statusDiv.style.background = '#10b981'; // Màu xanh lá
-                statusDiv.textContent = '✅ Đã tải xong toàn bộ dữ liệu!';
-                setTimeout(function() { statusDiv.remove(); }, 3000);
-                
-                // Render lại toàn bộ giao diện
-                if (typeof refreshAllUI === 'function') refreshAllUI();
-                if (typeof rEmp === 'function') rEmp();
-                if (typeof renderStatistics === 'function') renderStatistics();
-            } else {
-                statusDiv.style.background = '#ef4444';
-                statusDiv.textContent = '❌ Firebase trống hoặc lỗi dữ liệu!';
+        // ✅ FIX QUOTA: CHỈ TẢI DANH SÁCH NHÂN VIÊN + NHÓM + 60 NGÀY GẦN NHẤT
+        // Tuyệt đối KHÔNG tải toàn bộ 11,000 records cùng lúc!
+        var now = new Date();
+        var past = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+        var startMonthStr = past.getFullYear() + '-' + String(past.getMonth() + 1).padStart(2, '0');
+        
+        Promise.all([
+            db.ref('chamcong/employees').once('value'),
+            db.ref('chamcong/groups').once('value'),
+            db.ref('chamcong/hidden_emps').once('value'),
+            db.ref('chamcong/records').orderByChild('date').startAt(startMonthStr + '-01').once('value')
+        ]).then(function(results) {
+            var empData = results[0].val();
+            var groupData = results[1].val();
+            var hiddenData = results[2].val();
+            var recordsData = results[3].val();
+            
+            if (empData) localStorage.setItem('e', JSON.stringify(empData));
+            if (groupData) {
+                var gArr = Array.isArray(groupData) ? groupData : Object.values(groupData);
+                localStorage.setItem('g', JSON.stringify(gArr));
             }
+            if (hiddenData) localStorage.setItem('hidden_emps', JSON.stringify(hiddenData));
+            
+            if (recordsData) {
+                var recsArr = Array.isArray(recordsData) ? recordsData : Object.values(recordsData);
+                localStorage.setItem('r', JSON.stringify(recsArr));
+                console.log('✅ Đã tải ' + recsArr.length + ' bản ghi 2 tháng gần nhất (Tiết kiệm Quota)');
+            } else {
+                localStorage.setItem('r', '[]');
+            }
+
+            statusDiv.style.background = '#10b981'; 
+            statusDiv.textContent = '✅ Đã tải xong dữ liệu!';
+            setTimeout(function() { statusDiv.remove(); }, 3000);
+            
+            if (typeof refreshAllUI === 'function') refreshAllUI();
+            if (typeof rEmp === 'function') rEmp();
+            if (typeof renderStatistics === 'function') renderStatistics();
+            
         }).catch(function(e) {
             statusDiv.style.background = '#ef4444';
             statusDiv.textContent = '❌ Lỗi Firebase: ' + e.message;
@@ -4582,7 +4590,7 @@ function init() {
         });
     } else {
         // 👉 Nếu máy đã có dữ liệu, chỉ hiển thị lên, KHÔNG tải từ Firebase
-        console.log('⚡ Đã có dữ liệu trong máy, không tải từ Firebase để tiết kiệm 1GB.');
+        console.log('⚡ Đã có dữ liệu trong máy, không tải từ Firebase.');
         if (typeof refreshAllUI === 'function') refreshAllUI();
     }
 
