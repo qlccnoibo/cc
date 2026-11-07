@@ -4473,6 +4473,20 @@ async function syncFromSheets() {
 }
 
 function refreshAllUI() {
+  // ✅ Khiên bảo vệ: Tự động dọn rác trước khi vẽ giao diện
+  try {
+      var raw = localStorage.getItem('r');
+      if (raw) {
+          var recs = JSON.parse(raw);
+          var cleanRecs = recs.filter(function(r) { return r && r.id; });
+          if (cleanRecs.length < recs.length) {
+              localStorage.setItem('r', JSON.stringify(cleanRecs));
+              console.log('🧹 Tự động dọn ' + (recs.length - cleanRecs.length) + ' bản ghi rác');
+          }
+      }
+  } catch(e) {}
+
+  // Phần code cũ giữ nguyên
   rShifts();
   rGFull();
   rGCompact();
