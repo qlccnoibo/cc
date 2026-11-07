@@ -5816,7 +5816,6 @@ window.loadOldMonthData = async function(monthStr) {
     showAlert('⏳ Đang tải dữ liệu tháng ' + monthStr + ' từ Firebase...');
     
     try {
-        // ✅ Dùng date (chuẩn YYYY-MM-DD) thay vì timestamp bị lỗi
         var startDate = monthStr + '-01';
         var endDate = monthStr + '-31';
 
@@ -5830,29 +5829,54 @@ window.loadOldMonthData = async function(monthStr) {
         if (data) {
             var newRecs = Array.isArray(data) ? data : Object.values(data);
             
-            // Gộp dữ liệu tháng cũ vào máy
+            // Gộp dữ liệu mới vào mảng hiện tại
             var allRecs = currentRecs.concat(newRecs);
             
-            // Lọc trùng
+            // Lọc trùng theo ID
             var uniqueRecs = [];
             var seenIds = new Set();
             allRecs.forEach(function(r) {
-                if (r.id && !seenIds.has(r.id)) {
+                if (r && r.id && !seenIds.has(r.id)) {
                     seenIds.add(r.id);
                     uniqueRecs.push(r);
                 }
             });
             
-            localStorage.setItem('r', JSON.stringify(uniqueRecs));
-            console.log('✅ Đã tải thêm ' + newRecs.length + ' bản ghi của tháng ' + monthStr);
+            // ✅ FIX QUOTA LOCALSTORAGE: Giới hạn số lượng bản ghi lưu trong máy
+            // Mỗi bản ghi ~500 bytes -> 6000 bản ghi ~3MB (An toàn cho cả điện thoại)
+            var MAX_RECORDS = 6000; 
             
+            if (uniqueRecs.length > MAX_RECORDS) {
+                // Sắp xếp để giữ lại những ngày gần nhất, xóa những ngày cũ nhất
+                uniqueRecs.sort(function(a, b) {
+                    return new Date(b.date) - new Date(a.date); 
+                });
+                
+                // Cắt bớt mảng, chỉ giữ lại MAX_RECORDS phần tử mới nhất
+                uniqueRecs = uniqueRecs.slice(0, MAX_RECORDS);
+                console.log('⚠️ Đã dọn dẹp bớt dữ liệu cũ để giải phóng bộ nhớ điện thoại.');
+            }
+
+            // Lưu vào LocalStorage (Bọc try-catch để chống lỗi tràn bộ nhớ)
+            try {
+                localStorage.setItem('r', JSON.stringify(uniqueRecs));
+                console.log('✅ Đã tải và lưu ' + newRecs.length + ' bản ghi của tháng ' + monthStr);
+            } catch (storageError) {
+                console.warn('🚨 Tràn bộ nhớ LocalStorage, đang xóa bớt dữ liệu cũ...');
+                // Nếu vẫn lỗi, xóa mạnh tay hơn: Chỉ giữ 3000 bản ghi gần nhất
+                uniqueRecs = uniqueRecs.slice(0, 3000);
+                localStorage.setItem('r', JSON.stringify(uniqueRecs));
+            }
+            
+            // Cập nhật lại giao diện
             if (typeof refreshAllUI === 'function') refreshAllUI();
             if (typeof renderStatistics === 'function') renderStatistics();
             if (typeof applyStatsFilters === 'function') applyStatsFilters();
+            if (typeof window._statsData !== 'undefined') window._statsData = uniqueRecs;
         }
     } catch (error) {
         console.error('Lỗi tải tháng cũ:', error);
-        showAlert('❌ Lỗi: ' + error.message);
+        showAlert('❌ Lỗi tải dữ liệu: ' + error.message);
     }
 };
 
