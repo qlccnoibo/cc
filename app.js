@@ -5802,9 +5802,9 @@ window.loadOldMonthData = async function(monthStr) {
     showAlert('⏳ Đang tải dữ liệu tháng ' + monthStr + ' từ Firebase...');
     
     try {
-        // ✅ TÌM KIẾM THEO NGÀY (date) - Vì date của bạn rất chuẩn
+        // ✅ Dùng date (chuẩn YYYY-MM-DD) thay vì timestamp bị lỗi
         var startDate = monthStr + '-01';
-        var endDate = monthStr + '-31'; 
+        var endDate = monthStr + '-31';
 
         var snapshot = await db.ref('chamcong/records')
             .orderByChild('date')
@@ -5835,7 +5835,6 @@ window.loadOldMonthData = async function(monthStr) {
             if (typeof refreshAllUI === 'function') refreshAllUI();
             if (typeof renderStatistics === 'function') renderStatistics();
             if (typeof applyStatsFilters === 'function') applyStatsFilters();
-            
         }
     } catch (error) {
         console.error('Lỗi tải tháng cũ:', error);
