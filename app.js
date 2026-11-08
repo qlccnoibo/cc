@@ -5809,7 +5809,10 @@ window.autoCleanOldData = function() {
 window.loadOldMonthData = async function(monthStr) {
     if (!monthStr || typeof db === 'undefined') return;
     
+    // Lấy dữ liệu hiện tại trong máy
     var currentRecs = JSON.parse(localStorage.getItem('r') || '[]');
+    
+    // Nếu đã có dữ liệu tháng này rồi thì không tải nữa
     var hasData = currentRecs.some(function(r) { return r.date && r.date.startsWith(monthStr); });
     if (hasData) return; 
 
@@ -5819,6 +5822,7 @@ window.loadOldMonthData = async function(monthStr) {
         var startDate = monthStr + '-01';
         var endDate = monthStr + '-31';
 
+        // Tải dữ liệu của tháng được chọn từ Firebase
         var snapshot = await db.ref('chamcong/records')
             .orderByChild('date')
             .startAt(startDate)
@@ -5829,10 +5833,10 @@ window.loadOldMonthData = async function(monthStr) {
         if (data) {
             var newRecs = Array.isArray(data) ? data : Object.values(data);
             
-            // Gộp dữ liệu mới vào mảng hiện tại
+            // 1. Gộp dữ liệu tháng mới tải về vào dữ liệu hiện có
             var allRecs = currentRecs.concat(newRecs);
             
-            // Lọc trùng theo ID
+            // 2. Loại bỏ các bản ghi trùng lặp (nếu có)
             var uniqueRecs = [];
             var seenIds = new Set();
             allRecs.forEach(function(r) {
@@ -5842,33 +5846,53 @@ window.loadOldMonthData = async function(monthStr) {
                 }
             });
             
-            // ✅ FIX QUOTA LOCALSTORAGE: Giới hạn số lượng bản ghi lưu trong máy
-            // Mỗi bản ghi ~500 bytes -> 6000 bản ghi ~3MB (An toàn cho cả điện thoại)
-            var MAX_RECORDS = 6000; 
+            // =========================================================
+            // 🚀 CƠ CHẾ MỚI: DỌN DẸP THÔNG MINH (LRU CACHE)
+            // Điện thoại chỉ cho phép lưu tối đa khoảng 4.000 bản ghi (~2MB)
+            // =========================================================
+            var MAX_RECORDS = 4000; 
             
             if (uniqueRecs.length > MAX_RECORDS) {
-                // Sắp xếp để giữ lại những ngày gần nhất, xóa những ngày cũ nhất
-                uniqueRecs.sort(function(a, b) {
+                // Bước A: Tách riêng dữ liệu của tháng đang xem ra để BẢO VỆ NÓ
+                var currentMonthRecs = uniqueRecs.filter(function(r) {
+                    return r.date && r.date.startsWith(monthStr);
+                });
+                
+                // Bước B: Lấy tất cả các tháng khác
+                var otherRecs = uniqueRecs.filter(function(r) {
+                    return !r.date || !r.date.startsWith(monthStr);
+                });
+                
+                // Bước C: Sắp xếp các tháng khác theo thời gian GIẢM DẦN (Mới nhất lên đầu)
+                otherRecs.sort(function(a, b) {
                     return new Date(b.date) - new Date(a.date); 
                 });
                 
-                // Cắt bớt mảng, chỉ giữ lại MAX_RECORDS phần tử mới nhất
-                uniqueRecs = uniqueRecs.slice(0, MAX_RECORDS);
-                console.log('⚠️ Đã dọn dẹp bớt dữ liệu cũ để giải phóng bộ nhớ điện thoại.');
+                // Bước D: Tính toán xem còn được phép giữ bao nhiêu bản ghi của các tháng cũ
+                var slotsLeft = MAX_RECORDS - currentMonthRecs.length;
+                if (slotsLeft < 0) slotsLeft = 0;
+                
+                // Cắt bớt các tháng cũ. Những tháng cũ nhất (VD: T7) sẽ bị xóa khỏi điện thoại!
+                var keptOtherRecs = otherRecs.slice(0, slotsLeft);
+                
+                // Gộp lại: Dữ liệu tháng đang xem + Dữ liệu các tháng gần nhất
+                uniqueRecs = currentMonthRecs.concat(keptOtherRecs);
+                
+                console.log('🧹 Đã dọn dẹp bộ nhớ điện thoại! Xóa các tháng cũ để giữ lại tháng ' + monthStr);
             }
 
-            // Lưu vào LocalStorage (Bọc try-catch để chống lỗi tràn bộ nhớ)
+            // 3. Lưu vào bộ nhớ điện thoại
             try {
                 localStorage.setItem('r', JSON.stringify(uniqueRecs));
-                console.log('✅ Đã tải và lưu ' + newRecs.length + ' bản ghi của tháng ' + monthStr);
+                console.log('✅ Đã tải và lưu thành công tháng ' + monthStr);
             } catch (storageError) {
-                console.warn('🚨 Tràn bộ nhớ LocalStorage, đang xóa bớt dữ liệu cũ...');
-                // Nếu vẫn lỗi, xóa mạnh tay hơn: Chỉ giữ 3000 bản ghi gần nhất
-                uniqueRecs = uniqueRecs.slice(0, 3000);
+                // Nếu vẫn lỗi (do trình duyệt quá khắt khe), cắt giảm mạnh tay hơn xuống 2500 bản ghi
+                console.warn('🚨 Tràn bộ nhớ! Đang xóa bớt dữ liệu khẩn cấp...');
+                uniqueRecs = uniqueRecs.slice(0, 2500);
                 localStorage.setItem('r', JSON.stringify(uniqueRecs));
             }
             
-            // Cập nhật lại giao diện
+            // 4. Cập nhật giao diện
             if (typeof refreshAllUI === 'function') refreshAllUI();
             if (typeof renderStatistics === 'function') renderStatistics();
             if (typeof applyStatsFilters === 'function') applyStatsFilters();
