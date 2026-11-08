@@ -3837,231 +3837,273 @@ window.clearPersonalInput = function() {
     if (compareB) compareB.value = '';
 };
 
-function loadPersonalRecords() {
-  // Ẩn bảng so sánh
-var compareBlock = document.getElementById('compareResult');
-if (compareBlock) compareBlock.innerHTML = '';
-  var empInput = document.getElementById('personalEmpInput'),
-    empName = empInput ? empInput.value.trim() : '';
-  var dateType = localStorage.getItem('personal_date_type') || 'all',
-    dateVal = document.getElementById('personalDateInput')?.value || '',
-    monthVal = document.getElementById('personalMonthInput')?.value || '';
-  var summaryEl = document.getElementById('personalSummary'),
-    recordsEl = document.getElementById('personalRecords');
-  if (!summaryEl || !recordsEl) return;
-  if (!empName) {
-    //summaryEl.innerHTML = '<div class="muted" style="text-align:center;padding:20px">👆 Nhập tên nhân viên và nhấn Xem để tra cứu</div>';
-    recordsEl.innerHTML = '';
-    return;
-  }
-  var matchedEmp = emp.find(function(e) {
-    return cleanEmployeeName(e.name).toLowerCase() === empName.toLowerCase() ||
-      e.name.toLowerCase() === empName.toLowerCase();
-  });
-  if (!matchedEmp) {
-    summaryEl.innerHTML = '<div class="muted" style="text-align:center;padding:20px;color:#dc2626;">⚠️ Không tìm thấy nhân viên "' + empName + '" trong danh sách</div>';
-    recordsEl.innerHTML = '';
-    return;
-  }
-    var rec = L(REC_KEY, []),
-    personalRecs = rec.filter(function(r) { return r.employee === matchedEmp.name; });
-    
-  var dateType = localStorage.getItem('personal_date_type') || 'all';
-  
-  var yearVal = document.getElementById('personalYearInput')?.value || '';
-if (dateType === 'year' && yearVal) {
-    personalRecs = personalRecs.filter(function(r) { return r.date.startsWith(yearVal); });
-  } else if (dateType === 'month' && monthVal) {
-    personalRecs = personalRecs.filter(function(r) { return r.date.startsWith(monthVal); });
-   } else if (dateType === 'quarter') {
-    var qStart = localStorage.getItem('quarter_start');
-    var qEnd = localStorage.getItem('quarter_end');
-    
-    if (qStart && qEnd) {
-        personalRecs = personalRecs.filter(function(r) { 
-            return r.date >= qStart + '-01' && r.date <= qEnd + '-31'; 
-        });
-    } else {
-        var now = new Date();
-        var qMonth = Math.floor(now.getMonth() / 3) * 3 + 1;
-        qStart = now.getFullYear() + '-' + String(qMonth).padStart(2, '0');
-        qEnd = now.getFullYear() + '-' + String(qMonth + 2).padStart(2, '0');
-        personalRecs = personalRecs.filter(function(r) { 
-            return r.date >= qStart + '-01' && r.date <= qEnd + '-31'; 
-        });
-    }
-  } else if (dateType === 'first-half') {
-    var y1 = new Date().getFullYear();
-    personalRecs = personalRecs.filter(function(r) { 
-        var m = parseInt(r.date.substring(5, 7)); 
-        return r.date.startsWith(y1) && m >= 1 && m <= 6; 
-    });
-  } else if (dateType === 'second-half') {
-    var y2 = new Date().getFullYear();
-    personalRecs = personalRecs.filter(function(r) { 
-        var m = parseInt(r.date.substring(5, 7)); 
-        return r.date.startsWith(y2) && m >= 7 && m <= 12; 
-    });
-  }
-  personalRecs.sort(function(a, b) { return b.date.localeCompare(a.date); });
-  var totalHours = personalRecs.reduce(function(sum, r) {
-    return sum + getShiftHours(r.shift);
-  }, 0);
-  var totalDays = Math.round((totalHours / 8) * 100) / 100;
-  var totalDaysDisplay = totalDays % 1 === 0 ? totalDays.toFixed(0) : totalDays.toFixed(2);
-  var eatDaysSet = new Set();
-  personalRecs.forEach(function(r) {
-    if (r.eat === 'Có') {
-      eatDaysSet.add(r.date);
-    }
-  });
-  var eatDays = eatDaysSet.size;
-  var eatPercent = totalDays > 0 ? Math.round((eatDays / totalDays) * 100) : 0;
-  var tienCom = eatDays * 30000;
-  var tienComFormatted = tienCom.toLocaleString('vi-VN') + 'đ';
-  var caHours = {};
-  var caDays = {};
-  personalRecs.forEach(function(r) {
-    var caName = r.shift ? r.shift.split('(')[0].trim() : 'Khác';
-    var hours = getShiftHours(r.shift);
-    if (hours > 0) {
-      caHours[caName] = (caHours[caName] || 0) + hours;
-    } else {
-      caDays[caName] = (caDays[caName] || 0) + 1;
-    }
-  });
-  var topShift = '',
-    topShiftHours = 0;
-  for (var ca in caHours) {
-    if (caHours[ca] > topShiftHours) {
-      topShiftHours = caHours[ca];
-      topShift = ca;
-    }
-  }
-  var summaryHTML = '<div class="stat-dashboard">';
-  summaryHTML += '<div class="stat-card-enhanced"><span class="stat-icon">📅</span><div class="stat-number">' + totalDaysDisplay + '</div><div class="stat-label">Ngày làm việc (8h/ngày)</div></div>';
-  summaryHTML += '<div class="stat-card-enhanced"><span class="stat-icon">⏱️</span><div class="stat-number">' + totalHours + 'h</div><div class="stat-label">Tổng giờ công</div></div>';
-  summaryHTML += '<div class="stat-card-enhanced"><span class="stat-icon">🍚</span><div class="stat-number">' + eatDays + '</div><div class="stat-label">Ngày ăn cơm (' + eatPercent + '%)</div></div>';
-  summaryHTML += '<div class="stat-card-enhanced"><span class="stat-icon">💰</span><div class="stat-number" style="font-size:20px;">' + tienComFormatted + '</div><div class="stat-label">Tiền cơm (' + eatDays + ' ngày × 30.000đ)</div></div>';
-  
-  summaryHTML += '</div>';
-  if (Object.keys(caHours).length > 0 || Object.keys(caDays).length > 0) {
-    summaryHTML += '<div style="margin-top:12px"><b>📊 Phân bố ca làm việc:</b>';
-    var order = ['Ca 1', 'Ca 2', 'Ca 3', 'HC', '1/2 Ca', 'Nghỉ'];
-    var sortedCas = Object.keys(caHours).sort(function(a, b) {
-      var orderA = order.indexOf(a);
-      var orderB = order.indexOf(b);
-      if (orderA === -1) orderA = 99;
-      if (orderB === -1) orderB = 99;
-      return orderA - orderB;
-    });
-    for (var i = 0; i < sortedCas.length; i++) {
-      var ca = sortedCas[i];
-      var percent = totalHours > 0 ? Math.round((caHours[ca] / totalHours) * 100) : 0;
-      var barWidth = Math.max(percent, 5);
-      var caColors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#ef4444'];
-      var caColor = caColors[i % caColors.length]
-      var cong = Math.round((caHours[ca] / 8) * 100) / 100;
-      var congDisplay = cong % 1 === 0 ? cong.toFixed(0) : cong.toFixed(2);
-      summaryHTML += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #ebcfc6ff;"><span style="min-width:60px;font-size:13px;font-weight:500;">' + ca + '</span><div style="flex:1;background:#f1f5f9;border-radius:10px;height:16px;overflow:hidden;"><div style="background:linear-gradient(90deg, ' + caColor + ', ' + caColor + 'cc);height:100%;width:' + barWidth + '%;border-radius:10px;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;"><span style="color:white;font-size:11px;font-weight:700;">' + caHours[ca] + ' giờ</span></div></div><span style="font-weight:600;font-size:13px;min-width:120px;">' + congDisplay + ' công (' + percent + '%)</span></div>';
-    }
-    var order2 = ['Ca 1', 'Ca 2', 'Ca 3', 'HC', '1/2 Ca', 'Nghỉ'];
-    var sortedDays = Object.keys(caDays).sort(function(a, b) {
-      var orderA = order2.indexOf(a);
-      var orderB = order2.indexOf(b);
-      if (orderA === -1) orderA = 99;
-      if (orderB === -1) orderB = 99;
-      return orderA - orderB;
-    });
-    for (var j = 0; j < sortedDays.length; j++) {
-      var caDay = sortedDays[j];
-      var dayCount = caDays[caDay];
-      var totalRecordsCount = personalRecs.length;
-      var percentDay = totalRecordsCount > 0 ? Math.round((dayCount / totalRecordsCount) * 100) : 0;
-      var barWidthDay = Math.max(percentDay, 5);
-      summaryHTML += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f3f4f6;"><span style="min-width:60px;font-size:13px;font-weight:500;">' + caDay + '</span><div style="flex:1;background:#f1f5f9;border-radius:10px;height:16px;overflow:hidden;"><div style="background:linear-gradient(90deg, #94a3b8, #64748b);height:100%;width:' + barWidthDay + '%;border-radius:10px;"></div></div><span style="font-weight:600;font-size:13px;min-width:80px;">' + dayCount + ' ngày nghỉ</span></div>';
-    }
-    summaryHTML += '</div>';
-  }
-  var taskCountMap = {};
-  personalRecs.forEach(function(r) {
-    var shiftName = r.shift ? r.shift.split('(')[0].trim().toLowerCase() : '';
-    var heSo = 0;
-    if (shiftName.includes('1/2') || shiftName.includes('bán tg')) {
-      heSo = 0.5;
-    } else if (shiftName.includes('nghỉ') || shiftName.includes('off')) {
-      heSo = 0;
-    } else {
-      heSo = 1;
-    }
-    (r.tasks || []).forEach(function(t) {
-      taskCountMap[t.task] = (taskCountMap[t.task] || 0) + heSo;
-    });
-  });
-  var taskRanking = Object.entries(taskCountMap).sort(function(a, b) { return b[1] - a[1]; });
-  if (taskRanking.length > 0) {
-    var taskHtml = '<div style="margin-top:16px; background:white; border-radius:12px; padding:16px; box-shadow:0 1px 3px rgba(0,0,0,0.08);">';
-    taskHtml += '<h4 style="margin:0 0 12px 0;">📋 Thống kê công đoạn đã làm</h4>';
-    taskHtml += '<table class="stats-table-compact" style="width:100%;">';
-    taskHtml += '<tr><th>STT</th><th>Công đoạn</th><th>Số lần thực hiện</th><th>Tỉ lệ</th></tr>';
-    var totalTasks = taskRanking.reduce(function(s, item) { return s + item[1]; }, 0);
-    taskRanking.forEach(function(item, idx) {
-      var countVal = item[1];
-      var countDisplay = countVal % 1 === 0 ? countVal.toFixed(0) : countVal.toFixed(1);
-      var percent = Math.round((item[1] / totalTasks) * 100);
-      var barColor = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#ef4444'][idx % 6];
-      taskHtml += '<tr>';
-      taskHtml += '<td>' + (idx + 1) + '</td>';
-      taskHtml += '<td><strong>' + item[0] + '</strong></td>';
-      taskHtml += '<td><span style="background:' + barColor + '; color:white; padding:3px 10px; border-radius:12px; font-weight:600; font-size:13px;">' + countDisplay + ' lần</span></td>';
-      taskHtml += '<td>' + percent + '%</td>';
-      taskHtml += '</tr>';
-    });
-    taskHtml += '</table></div>';
-    summaryHTML += taskHtml;
-  }
-  summaryEl.innerHTML = summaryHTML;
-  if (!personalRecs.length) {
-    recordsEl.innerHTML = '<div class="muted" style="text-align:center;padding:16px;margin-top:12px;">Không có bản ghi nào phù hợp</div>';
-  } else {
-    // 👉 KIỂM TRA: Ẩn chi tiết nếu xem theo Năm, Quý, hoặc 6 Tháng
-    if (dateType === 'year' || dateType === 'quarter' || dateType === 'first-half' || dateType === 'second-half') {
-        recordsEl.innerHTML = ''; // Xóa trống phần chi tiết
-        return; // Thoát hàm, không tạo bảng chi tiết nữa
-    }
-    var allRecords = L(REC_KEY, []);
-    var html = '<div style="margin-top:12px;"><h4 style="margin:0 0 10px 0;">📋 Chi tiết chấm công</h4><div style="overflow-x:auto"><table class="stats-table-compact"><tr><th>Ngày</th><th>Ca</th><th>Công đoạn</th><th>Đồng nghiệp</th><th>Ăn</th><th>Ghi chú</th></tr>';
-    personalRecs.forEach(function(recItem) {
-      var colleagues = allRecords.filter(function(r) {
-        return r.date === recItem.date &&
-          r.shift === recItem.shift &&
-          cleanEmployeeName(r.employee) !== cleanEmployeeName(recItem.employee) &&
-          (r.tasks || []).some(function(t1) {
-            return (recItem.tasks || []).some(function(t2) { return t1.task === t2.task; });
-          });
-      }).map(function(r) { return cleanEmployeeName(r.employee); });
-      var uniqueColleagues = Array.from(new Set(colleagues));
-      var tasksStr = (recItem.tasks || []).map(function(t) { return t.task; }).join(', ');
-      var colleaguesHtml = '';
-        if (uniqueColleagues.length > 0) {
-            uniqueColleagues.forEach(function(c) {
-                colleaguesHtml += '<span class="colleague-tag">' + escHtml(cleanEmployeeName(c)) + '</span> ';
-            });
-        } else {
-            colleaguesHtml = '<span class="muted">Một mình</span>';
-        }
-      var noteStr = recItem.note || '-',
-        noteDisplay = noteStr.length > 25 ? noteStr.substring(0, 25) + '...' : noteStr;
-      var eatBadge = recItem.eat === 'Có' ? 'yes' : 'no',
-        shiftName = recItem.shift ? recItem.shift.split('(')[0].trim() : '-';
-      var escapedNote = noteStr.replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, ' ');
-      html += '<tr><td class="date-compact">' + formatDate(recItem.date) + '</td><td><span class="shift-badge ' + getShiftColorClass(shiftName) + '">' + shiftName + '</span></td><td class="task-list-compact">' + tasksStr + '</td><td>' + colleaguesHtml + '</td><td><span class="eat-badge ' + eatBadge + '">' + (recItem.eat || '-') + '</span></td><td class="note-cell-personal" onclick="showNotePopup(event, \'' + escapedNote + '\')" onmouseenter="showNotePopup(event, \'' + escapedNote + '\')" onmouseleave="hideNotePopup()">' + noteDisplay + '</td></tr>';
-    });
-    html += '</table></div></div>';
-    recordsEl.innerHTML = html;
-  }
-}
+async function loadPersonalRecords() {
+    // Ẩn bảng so sánh
+    var compareBlock = document.getElementById('compareResult');
+    if (compareBlock) compareBlock.innerHTML = '';
 
+    var empInput = document.getElementById('personalEmpInput'),
+        empName = empInput ? empInput.value.trim() : '';
+    
+    var dateType = localStorage.getItem('personal_date_type') || 'all',
+        dateVal = document.getElementById('personalDateInput')?.value || '',
+        monthVal = document.getElementById('personalMonthInput')?.value || '';
+        
+    var summaryEl = document.getElementById('personalSummary'),
+        recordsEl = document.getElementById('personalRecords');
+        
+    if (!summaryEl || !recordsEl) return;
+    
+    if (!empName) {
+        recordsEl.innerHTML = '';
+        return;
+    }
+
+    var matchedEmp = emp.find(function(e) {
+        return cleanEmployeeName(e.name).toLowerCase() === empName.toLowerCase() ||
+            e.name.toLowerCase() === empName.toLowerCase();
+    });
+
+    if (!matchedEmp) {
+        summaryEl.innerHTML = '<div class="muted" style="text-align:center;padding:20px;color:#dc2626;">⚠️ Không tìm thấy nhân viên "' + empName + '" trong danh sách</div>';
+        recordsEl.innerHTML = '';
+        return;
+    }
+
+    // Lấy dữ liệu hiện có trong máy (LocalStorage)
+    var rec = L(REC_KEY, []);
+    var personalRecs = rec.filter(function(r) { return r.employee === matchedEmp.name; });
+
+    // Xác định xem có cần tải từ Firebase không
+    var isLongTerm = (dateType === 'all' || dateType === 'year' || dateType === 'quarter' || dateType === 'first-half' || dateType === 'second-half');
+    
+    if (isLongTerm) {
+        summaryEl.innerHTML = '<div class="muted" style="text-align:center;padding:20px;">⏳ Đang tải dữ liệu từ Firebase...</div>';
+        recordsEl.innerHTML = '';
+        
+        var startQ = '2000-01-01';
+        var endQ = '2100-12-31';
+        var yearVal = document.getElementById('personalYearInput')?.value || '';
+        var qStart = localStorage.getItem('quarter_start');
+        var qEnd = localStorage.getItem('quarter_end');
+        
+        if (dateType === 'year' && yearVal) {
+            startQ = yearVal + '-01-01'; endQ = yearVal + '-12-31';
+        } else if (dateType === 'quarter' && qStart && qEnd) {
+            startQ = qStart + '-01'; endQ = qEnd + '-31';
+        } else if (dateType === 'first-half') {
+            var y1 = new Date().getFullYear();
+            startQ = y1 + '-01-01'; endQ = y1 + '-06-30';
+        } else if (dateType === 'second-half') {
+            var y2 = new Date().getFullYear();
+            startQ = y2 + '-07-01'; endQ = y2 + '-12-31';
+        } else if (dateType === 'all') {
+            // Lấy từ tháng đầu tiên có dữ liệu trong máy
+            if (personalRecs.length > 0) {
+                personalRecs.sort((a,b) => a.date.localeCompare(b.date));
+                startQ = personalRecs[0].date;
+            }
+        }
+
+        if (typeof db !== 'undefined') {
+            try {
+                var snapshot = await db.ref('chamcong/records')
+                    .orderByChild('date')
+                    .startAt(startQ)
+                    .endAt(endQ)
+                    .once('value');
+                
+                var fbData = snapshot.val();
+                if (fbData) {
+                    var allFbRecs = Array.isArray(fbData) ? fbData : Object.values(fbData);
+                    personalRecs = allFbRecs.filter(function(r) { return r.employee === matchedEmp.name; });
+                } else {
+                    personalRecs = [];
+                }
+            } catch(e) {
+                console.error("Lỗi tải từ Firebase:", e);
+                summaryEl.innerHTML = '<div class="muted" style="text-align:center;padding:20px;color:#dc2626;">❌ Lỗi kết nối Firebase. Vui lòng thử lại.</div>';
+                return;
+            }
+        }
+    } else {
+        // Nếu xem theo Tháng, chỉ cần lọc dữ liệu trong máy
+        if (dateType === 'month' && monthVal) {
+            personalRecs = personalRecs.filter(function(r) { return r.date.startsWith(monthVal); });
+        }
+    }
+
+    // =========================================================
+    // BẮT ĐẦU PHẦN VẼ GIAO DIỆN (Giữ nguyên logic cũ của bạn)
+    // =========================================================
+    personalRecs.sort(function(a, b) { return b.date.localeCompare(a.date); });
+    
+    var totalHours = personalRecs.reduce(function(sum, r) {
+        return sum + getShiftHours(r.shift);
+    }, 0);
+    
+    var totalDays = Math.round((totalHours / 8) * 100) / 100;
+    var totalDaysDisplay = totalDays % 1 === 0 ? totalDays.toFixed(0) : totalDays.toFixed(2);
+    
+    var eatDaysSet = new Set();
+    personalRecs.forEach(function(r) {
+        if (r.eat === 'Có') {
+            eatDaysSet.add(r.date);
+        }
+    });
+    
+    var eatDays = eatDaysSet.size;
+    var eatPercent = totalDays > 0 ? Math.round((eatDays / totalDays) * 100) : 0;
+    var tienCom = eatDays * 30000;
+    var tienComFormatted = tienCom.toLocaleString('vi-VN') + 'đ';
+    
+    var caHours = {};
+    var caDays = {};
+    personalRecs.forEach(function(r) {
+        var caName = r.shift ? r.shift.split('(')[0].trim() : 'Khác';
+        var hours = getShiftHours(r.shift);
+        if (hours > 0) {
+            caHours[caName] = (caHours[caName] || 0) + hours;
+        } else {
+            caDays[caName] = (caDays[caName] || 0) + 1;
+        }
+    });
+    
+    var summaryHTML = '<div class="stat-dashboard">';
+    summaryHTML += '<div class="stat-card-enhanced"><span class="stat-icon">📅</span><div class="stat-number">' + totalDaysDisplay + '</div><div class="stat-label">Ngày làm việc (8h/ngày)</div></div>';
+    summaryHTML += '<div class="stat-card-enhanced"><span class="stat-icon">⏱️</span><div class="stat-number">' + totalHours + 'h</div><div class="stat-label">Tổng giờ công</div></div>';
+    summaryHTML += '<div class="stat-card-enhanced"><span class="stat-icon">🍚</span><div class="stat-number">' + eatDays + '</div><div class="stat-label">Ngày ăn cơm (' + eatPercent + '%)</div></div>';
+    summaryHTML += '<div class="stat-card-enhanced"><span class="stat-icon">💰</span><div class="stat-number" style="font-size:20px;">' + tienComFormatted + '</div><div class="stat-label">Tiền cơm (' + eatDays + ' ngày × 30.000đ)</div></div>';
+    summaryHTML += '</div>';
+    
+    if (Object.keys(caHours).length > 0 || Object.keys(caDays).length > 0) {
+        summaryHTML += '<div style="margin-top:12px"><b>📊 Phân bố ca làm việc:</b>';
+        var order = ['Ca 1', 'Ca 2', 'Ca 3', 'HC', '1/2 Ca', 'Nghỉ'];
+        var sortedCas = Object.keys(caHours).sort(function(a, b) {
+            var orderA = order.indexOf(a);
+            var orderB = order.indexOf(b);
+            if (orderA === -1) orderA = 99;
+            if (orderB === -1) orderB = 99;
+            return orderA - orderB;
+        });
+        
+        for (var i = 0; i < sortedCas.length; i++) {
+            var ca = sortedCas[i];
+            var percent = totalHours > 0 ? Math.round((caHours[ca] / totalHours) * 100) : 0;
+            var barWidth = Math.max(percent, 5);
+            var caColors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#ef4444'];
+            var caColor = caColors[i % caColors.length];
+            var cong = Math.round((caHours[ca] / 8) * 100) / 100;
+            var congDisplay = cong % 1 === 0 ? cong.toFixed(0) : cong.toFixed(2);
+            summaryHTML += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #ebcfc6ff;"><span style="min-width:60px;font-size:13px;font-weight:500;">' + ca + '</span><div style="flex:1;background:#f1f5f9;border-radius:10px;height:16px;overflow:hidden;"><div style="background:linear-gradient(90deg, ' + caColor + ', ' + caColor + 'cc);height:100%;width:' + barWidth + '%;border-radius:10px;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;"><span style="color:white;font-size:11px;font-weight:700;">' + caHours[ca] + ' giờ</span></div></div><span style="font-weight:600;font-size:13px;min-width:120px;">' + congDisplay + ' công (' + percent + '%)</span></div>';
+        }
+        
+        var sortedDays = Object.keys(caDays).sort(function(a, b) {
+            var orderA = order.indexOf(a);
+            var orderB = order.indexOf(b);
+            if (orderA === -1) orderA = 99;
+            if (orderB === -1) orderB = 99;
+            return orderA - orderB;
+        });
+        
+        for (var j = 0; j < sortedDays.length; j++) {
+            var caDay = sortedDays[j];
+            var dayCount = caDays[caDay];
+            var totalRecordsCount = personalRecs.length;
+            var percentDay = totalRecordsCount > 0 ? Math.round((dayCount / totalRecordsCount) * 100) : 0;
+            var barWidthDay = Math.max(percentDay, 5);
+            summaryHTML += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f3f4f6;"><span style="min-width:60px;font-size:13px;font-weight:500;">' + caDay + '</span><div style="flex:1;background:#f1f5f9;border-radius:10px;height:16px;overflow:hidden;"><div style="background:linear-gradient(90deg, #94a3b8, #64748b);height:100%;width:' + barWidthDay + '%;border-radius:10px;"></div></div><span style="font-weight:600;font-size:13px;min-width:80px;">' + dayCount + ' ngày nghỉ</span></div>';
+        }
+        summaryHTML += '</div>';
+    }
+
+    var taskCountMap = {};
+    personalRecs.forEach(function(r) {
+        var shiftName = r.shift ? r.shift.split('(')[0].trim().toLowerCase() : '';
+        var heSo = 0;
+        if (shiftName.includes('1/2') || shiftName.includes('bán tg')) {
+            heSo = 0.5;
+        } else if (shiftName.includes('nghỉ') || shiftName.includes('off')) {
+            heSo = 0;
+        } else {
+            heSo = 1;
+        }
+        (r.tasks || []).forEach(function(t) {
+            taskCountMap[t.task] = (taskCountMap[t.task] || 0) + heSo;
+        });
+    });
+
+    var taskRanking = Object.entries(taskCountMap).sort(function(a, b) { return b[1] - a[1]; });
+    if (taskRanking.length > 0) {
+        var taskHtml = '<div style="margin-top:16px; background:white; border-radius:12px; padding:16px; box-shadow:0 1px 3px rgba(0,0,0,0.08);">';
+        taskHtml += '<h4 style="margin:0 0 12px 0;">📋 Thống kê công đoạn đã làm</h4>';
+        taskHtml += '<table class="stats-table-compact" style="width:100%;">';
+        taskHtml += '<tr><th>STT</th><th>Công đoạn</th><th>Số lần thực hiện</th><th>Tỉ lệ</th></tr>';
+        var totalTasks = taskRanking.reduce(function(s, item) { return s + item[1]; }, 0);
+        taskRanking.forEach(function(item, idx) {
+            var countVal = item[1];
+            var countDisplay = countVal % 1 === 0 ? countVal.toFixed(0) : countVal.toFixed(1);
+            var percent = Math.round((item[1] / totalTasks) * 100);
+            var barColor = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#ef4444'][idx % 6];
+            taskHtml += '<tr>';
+            taskHtml += '<td>' + (idx + 1) + '</td>';
+            taskHtml += '<td><strong>' + item[0] + '</strong></td>';
+            taskHtml += '<td><span style="background:' + barColor + '; color:white; padding:3px 10px; border-radius:12px; font-weight:600; font-size:13px;">' + countDisplay + ' lần</span></td>';
+            taskHtml += '<td>' + percent + '%</td>';
+            taskHtml += '</tr>';
+        });
+        taskHtml += '</table></div>';
+        summaryHTML += taskHtml;
+    }
+    
+    summaryEl.innerHTML = summaryHTML;
+
+    if (!personalRecs.length) {
+        recordsEl.innerHTML = '<div class="muted" style="text-align:center;padding:16px;margin-top:12px;">Không có bản ghi nào phù hợp</div>';
+    } else {
+        if (dateType === 'year' || dateType === 'quarter' || dateType === 'first-half' || dateType === 'second-half') {
+            recordsEl.innerHTML = '';
+            return;
+        }
+        
+        var allRecords = L(REC_KEY, []);
+        var html = '<div style="margin-top:12px;"><h4 style="margin:0 0 10px 0;">📋 Chi tiết chấm công</h4><div style="overflow-x:auto"><table class="stats-table-compact"><tr><th>Ngày</th><th>Ca</th><th>Công đoạn</th><th>Đồng nghiệp</th><th>Ăn</th><th>Ghi chú</th></tr>';
+        
+        personalRecs.forEach(function(recItem) {
+            var colleagues = allRecords.filter(function(r) {
+                return r.date === recItem.date &&
+                    r.shift === recItem.shift &&
+                    cleanEmployeeName(r.employee) !== cleanEmployeeName(recItem.employee) &&
+                    (r.tasks || []).some(function(t1) {
+                        return (recItem.tasks || []).some(function(t2) { return t1.task === t2.task; });
+                    });
+            }).map(function(r) { return cleanEmployeeName(r.employee); });
+            
+            var uniqueColleagues = Array.from(new Set(colleagues));
+            var tasksStr = (recItem.tasks || []).map(function(t) { return t.task; }).join(', ');
+            var colleaguesHtml = '';
+            
+            if (uniqueColleagues.length > 0) {
+                uniqueColleagues.forEach(function(c) {
+                    colleaguesHtml += '<span class="colleague-tag">' + escHtml(cleanEmployeeName(c)) + '</span> ';
+                });
+            } else {
+                colleaguesHtml = '<span class="muted">Một mình</span>';
+            }
+            
+            var noteStr = recItem.note || '-',
+                noteDisplay = noteStr.length > 25 ? noteStr.substring(0, 25) + '...' : noteStr;
+            var eatBadge = recItem.eat === 'Có' ? 'yes' : 'no',
+                shiftName = recItem.shift ? recItem.shift.split('(')[0].trim() : '-';
+            var escapedNote = noteStr.replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, ' ');
+            
+            html += '<tr><td class="date-compact">' + formatDate(recItem.date) + '</td><td><span class="shift-badge ' + getShiftColorClass(shiftName) + '">' + shiftName + '</span></td><td class="task-list-compact">' + tasksStr + '</td><td>' + colleaguesHtml + '</td><td><span class="eat-badge ' + eatBadge + '">' + (recItem.eat || '-') + '</span></td><td class="note-cell-personal" onclick="showNotePopup(event, \'' + escapedNote + '\')" onmouseenter="showNotePopup(event, \'' + escapedNote + '\')" onmouseleave="hideNotePopup()">' + noteDisplay + '</td></tr>';
+        });
+        
+        html += '</table></div></div>';
+        recordsEl.innerHTML = html;
+    }
+}
 // ==================== NOTE POPUP FUNCTIONS ====================
 window.showNotePopup = function(event, noteText) {
   var popup = document.getElementById('notePopup');
@@ -6183,3 +6225,29 @@ window.addEventListener('pagehide', function() {
         } catch(e) {}
     }
 });
+
+// Hàm lấy dữ liệu của 1 nhân viên trong khoảng thời gian cụ thể (Không cần lưu vào máy)
+async function fetchPersonalRecordsFromFirebase(empName, startDate, endDate) {
+    if (typeof db === 'undefined') return [];
+    
+    try {
+        // Lấy toàn bộ records trong khoảng thời gian (dựa vào trường date)
+        var snapshot = await db.ref('chamcong/records')
+            .orderByChild('date')
+            .startAt(startDate)
+            .endAt(endDate)
+            .once('value');
+            
+        var data = snapshot.val();
+        if (!data) return [];
+        
+        var allRecs = Array.isArray(data) ? data : Object.values(data);
+        // Chỉ lọc lấy của nhân viên này
+        return allRecs.filter(function(r) {
+            return r.employee === empName;
+        });
+    } catch (e) {
+        console.error("Lỗi tải dữ liệu cá nhân:", e);
+        return [];
+    }
+}
