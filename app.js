@@ -1933,11 +1933,13 @@ function renderMissingEmployees() {
 }
 
 // ==================== STATISTICS FUNCTIONS ====================
-function renderStatistics() {
-  var rec = L(REC_KEY, []);
+async function renderStatistics() { // Thêm async
+  var rec = await getRecords(); // ✅ Đọc từ IndexedDB
   var el = document.getElementById('statsContent');
   if (!el) return;
-  if (!rec.length) { el.innerHTML = '<div class="muted" style="text-align:center;padding:40px">📊 Chưa có dữ liệu chấm công</div>'; return; }
+  if (!rec || rec.length === 0) 
+    { 
+      el.innerHTML = '<div class="muted" style="text-align:center;padding:40px">📊 Chưa có dữ liệu chấm công</div>'; return; }
   window._statsData = rec;
 
   var html = '';
@@ -4556,30 +4558,26 @@ function updateClock() {
 }
 
 // ==================== INIT ====================
-async function init() {    
-    checkAdmin();
-    // 👉 Tự động dọn dẹp dữ liệu cũ để bảo vệ bộ nhớ máy
-    if (typeof autoCleanOldData === 'function') autoCleanOldData();
-    
-    // 1. Hiển thị ngay dữ liệu cũ trong máy (nếu có) để không bị trắng trang
+async function init() {   
+    // 1. Hiển thị giao diện khung trước để không bị trắng trang
     rShifts(); rGFull(); rGCompact(); rEmp(); rShiftList();
     renderAudit(); renderStatistics(); initAutocomplete();
     renderSelectedEmployees(); initNoteCharCount(); renderMissingEmployees();
+
+    checkAdmin();
+    if (typeof autoCleanOldData === 'function') autoCleanOldData();
     
     var empCount = document.getElementById('empCount');
     if (empCount) empCount.textContent = emp.length + ' NV';
 
-    // 2. Tải dữ liệu từ Firebase (Cơ chế thông minh: Chỉ tải 1 lần)
+    // 2. KẾT NỐI FIREBASE
     if (!isAdmin && typeof db !== 'undefined') {
-        // ✅ Chỉ tạo 1 listener duy nhất, không bao giờ tạo thêm
         if (!window._lastUpdatedListenerAttached) {
             window._lastUpdatedListenerAttached = true;
-            
             window._lastUpdatedListener = db.ref('chamcong/last_updated').on('value', function(snap) {
                 var lastUpdated = snap.val();
                 var lastSeen = parseInt(localStorage.getItem('last_seen_update') || '0');
                 var badge = document.getElementById('updateBadge');
-                
                 if (lastUpdated && lastUpdated > lastSeen) {
                     if (badge) badge.style.display = 'inline-block';
                 } else {
@@ -4589,73 +4587,66 @@ async function init() {
         }
     }
     
-        // 👉 KIỂM TRA: Nếu máy đã có dữ liệu rồi thì KHÔNG tải lại từ Firebase nữa
-    var currentData = await getRecords(); 
-    var isDataEmpty = (!currentData || currentData.length === 0);
+    // 3. TẢI DỮ LIỆU TỪ INDEXEDDB
+    try {
+        var currentData = await getRecords(); 
+        var isDataEmpty = (!currentData || currentData.length === 0);
 
-    if (isDataEmpty) {
-        // Hiển thị thông báo đang tải (Chỉ hiện lần đầu)
-        var statusDiv = document.createElement('div');
-        statusDiv.id = 'fbStatus';
-        statusDiv.style.cssText = 'position:fixed; top:0; left:0; right:0; background:#3b82f6; color:white; padding:8px; font-size:12px; z-index:99999; text-align:center; font-weight:bold;';
-        statusDiv.textContent = '⏳ Đang tải dữ liệu cơ bản từ Firebase...';
-        document.body.appendChild(statusDiv);
+        if (isDataEmpty) {
+            var statusDiv = document.createElement('div');
+            statusDiv.id = 'fbStatus';
+            statusDiv.style.cssText = 'position:fixed; top:0; left:0; right:0; background:#3b82f6; color:white; padding:8px; font-size:12px; z-index:99999; text-align:center; font-weight:bold;';
+            statusDiv.textContent = '⏳ Đang tải dữ liệu cơ bản từ Firebase...';
+            document.body.appendChild(statusDiv);
 
-        // ✅ FIX QUOTA: CHỈ TẢI DANH SÁCH NHÂN VIÊN + NHÓM + 2 THÁNG GẦN NHẤT
-        var now = new Date();
-        var past = new Date(now.getFullYear(), now.getMonth() - 2, 1);
-        var startMonthStr = past.getFullYear() + '-' + String(past.getMonth() + 1).padStart(2, '0');
-        
-        Promise.all([
-            db.ref('chamcong/employees').once('value'),
-            db.ref('chamcong/groups').once('value'),
-            db.ref('chamcong/hidden_emps').once('value'),
-            db.ref('chamcong/records').orderByChild('date').startAt(startMonthStr + '-01').once('value')
-        ]).then(async function(results) {
-            var empData = results[0].val();
-            var groupData = results[1].val();
-            var hiddenData = results[2].val();
-            var recordsData = results[3].val();
+            // Chỉ tải 2 tháng gần nhất để nhẹ máy
+            var now = new Date();
+            var past = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+            var startMonthStr = past.getFullYear() + '-' + String(past.getMonth() + 1).padStart(2, '0');
             
-            if (empData) localStorage.setItem('e', JSON.stringify(empData));
-            if (groupData) {
-                var gArr = Array.isArray(groupData) ? groupData : Object.values(groupData);
-                localStorage.setItem('g', JSON.stringify(gArr));
-            }
-            if (hiddenData) localStorage.setItem('hidden_emps', JSON.stringify(hiddenData));
-            
-            if (recordsData) {
-                var recsArr = Array.isArray(recordsData) ? recordsData : Object.values(recordsData);
-                // ✅ Lưu vào IndexedDB (dung lượng lớn) thay vì LocalStorage (5MB)
-                await saveRecords(recsArr); 
-                console.log('✅ Đã tải ' + recsArr.length + ' bản ghi 2 tháng gần nhất vào IndexedDB');
-            } else {
-                await saveRecords([]);
-            }
+            db.ref('chamcong').once('value').then(async function(snapshot) {
+                var data = snapshot.val();
+                if (data) {
+                    if (data.employees) localStorage.setItem('e', JSON.stringify(data.employees));
+                    if (data.groups) {
+                        var gArr = Array.isArray(data.groups) ? data.groups : Object.values(data.groups);
+                        localStorage.setItem('g', JSON.stringify(gArr));
+                    }
+                    if (data.hidden_emps) localStorage.setItem('hidden_emps', JSON.stringify(data.hidden_emps));
+                    
+                    if (data.records) {
+                        var allRecs = Array.isArray(data.records) ? data.records : Object.values(data.records);
+                        await saveRecords(allRecs);
+                        console.log('✅ Đã tải ' + allRecs.length + ' bản ghi');
+                    } else {
+                        await saveRecords([]);
+                    }
 
-            statusDiv.style.background = '#10b981'; 
-            statusDiv.textContent = '✅ Đã tải xong dữ liệu!';
-            setTimeout(function() { statusDiv.remove(); }, 3000);
-            
+                    statusDiv.style.background = '#10b981'; 
+                    statusDiv.textContent = '✅ Đã tải xong dữ liệu!';
+                    setTimeout(function() { statusDiv.remove(); }, 3000);
+                    
+                    if (typeof refreshAllUI === 'function') refreshAllUI();
+                } else {
+                    statusDiv.style.background = '#ef4444';
+                    statusDiv.textContent = '❌ Firebase trống hoặc lỗi dữ liệu!';
+                }
+            }).catch(function(e) {
+                statusDiv.style.background = '#ef4444';
+                statusDiv.textContent = '❌ Lỗi Firebase: ' + e.message;
+                console.error(e);
+            });
+        } else {
+            console.log('⚡ Đã có dữ liệu trong IndexedDB, không tải từ Firebase.');
             if (typeof refreshAllUI === 'function') refreshAllUI();
-            if (typeof rEmp === 'function') rEmp();
-            if (typeof renderStatistics === 'function') renderStatistics();
-            
-        }).catch(function(e) {
-            statusDiv.style.background = '#ef4444';
-            statusDiv.textContent = '❌ Lỗi Firebase: ' + e.message;
-            console.error(e);
-        });
-    } else {
-        // 👉 Nếu máy đã có dữ liệu, chỉ hiển thị lên, KHÔNG tải từ Firebase
-        console.log('⚡ Đã có dữ liệu trong IndexedDB, không tải từ Firebase.');
-        if (typeof refreshAllUI === 'function') refreshAllUI();
+        }
+    } catch (e) {
+        console.error("Lỗi khởi tạo IndexedDB:", e);
     }
 
-    // 3. Các cài đặt khác
+    // 4. Cài đặt thời gian
     var attDate = document.getElementById('attDate');
     if (attDate) attDate.value = getLocalDateStr();
-    
     updateClock();
     setInterval(updateClock, 1000);
     initModalAutocomplete();
