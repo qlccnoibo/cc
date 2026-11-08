@@ -317,9 +317,13 @@ if ('serviceWorker' in navigator) {
         .catch(function(e) { console.error('❌ Lỗi SW:', e); });
 }
 </script>
-  <!-- Utils — PHẢI ĐỨNG TRƯỚC app.js -->
+  <!-- Utils (Hàm bổ trợ) -->
   <script src="utils.js"></script>
-  <!-- JavaScript chính -->
-  <script src="app.js?v=555"></script>
+  
+  <!-- Thư viện hỗ trợ lưu trữ dung lượng lớn IndexedDB -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
+
+  <!-- Code chính của bạn (Đổi version lên 591 để xóa cache cũ) -->
+  <script src="app.js?v=591"></script>
 </body>
 </html>
