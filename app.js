@@ -129,33 +129,48 @@ var bigStorage = localforage.createInstance({
     storeName: "big_records"
 });
 
-// Hàm đọc Records (Async)
+// ✅ Hàm đọc Records có cơ chế dự phòng (Fallback)
 async function getRecords() {
     try {
+        // Thử đọc từ IndexedDB trước
         var data = await bigStorage.getItem('r');
-        if (data) return data;
+        if (data && data.length > 0) return data;
         
-        // Nếu chưa có trong kho lớn, lấy từ kho nhỏ (localStorage) chuyển sang
+        // Nếu IndexedDB trống, thử đọc từ LocalStorage cũ (để di cư dữ liệu)
         var oldData = localStorage.getItem('r');
         if (oldData) {
             var parsed = JSON.parse(oldData);
-            await bigStorage.setItem('r', parsed);
+            await bigStorage.setItem('r', parsed); // Di cư sang IndexedDB
+            localStorage.removeItem('r');
             return parsed;
         }
         return [];
-    } catch(e) {
-        return [];
+    } catch (e) {
+        console.warn("⚠️ IndexedDB lỗi trên điện thoại, chuyển sang dùng LocalStorage tạm thời:", e);
+        // NẾU INDEXEDDB LỖI -> ĐỌC TỪ LOCALSTORAGE
+        try {
+            var fallbackData = localStorage.getItem('r');
+            return fallbackData ? JSON.parse(fallbackData) : [];
+        } catch (err) {
+            return [];
+        }
     }
 }
 
-// Hàm lưu Records (Async)
+// ✅ Hàm lưu Records có cơ chế dự phòng
 async function saveRecords(recordsArray) {
     try {
+        // Ưu tiên lưu vào IndexedDB
         await bigStorage.setItem('r', recordsArray);
-        // Xóa ở localStorage để giải phóng bộ nhớ 5MB
-        localStorage.removeItem('r'); 
-    } catch(e) {
-        console.error("Lỗi lưu Records:", e);
+        localStorage.removeItem('r'); // Xóa bản cũ trong LocalStorage nếu có
+    } catch (e) {
+        console.warn("⚠️ Không thể lưu vào IndexedDB, đang lưu tạm vào LocalStorage:", e);
+        // NẾU INDEXEDDB LỖI -> LƯU VÀO LOCALSTORAGE
+        try {
+            localStorage.setItem('r', JSON.stringify(recordsArray));
+        } catch (storageError) {
+            console.error("🚨 Cả IndexedDB và LocalStorage đều đầy!", storageError);
+        }
     }
 }
 
