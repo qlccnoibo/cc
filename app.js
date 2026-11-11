@@ -5950,6 +5950,7 @@ window.loadOldMonthData = async function(monthStr) {
             .orderByChild('date')
             .startAt(startDate)
             .endAt(endDate)
+            .limitToLast(2000)
             .once('value');
             
         var data = snapshot.val();
