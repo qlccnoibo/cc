@@ -5940,7 +5940,7 @@ window.loadOldMonthData = async function(monthStr) {
     var hasData = currentRecs.some(function(r) { return r.date && r.date.startsWith(monthStr); });
     if (hasData) return; 
 
-    showAlert('⏳ Đang tải dữ liệu tháng ' + monthStr + ' từ Firebase...\n(Hệ thống sẽ tạm ẩn các tháng khác để lấy bộ nhớ)');
+    showAlert('⏳ Đang tải dữ liệu tháng ' + monthStr + ' từ Firebase...');
     
     try {
         var startDate = monthStr + '-01';
@@ -5956,31 +5956,52 @@ window.loadOldMonthData = async function(monthStr) {
         if (data) {
             var newRecs = Array.isArray(data) ? data : Object.values(data);
             
-            // ✅ ÁP DỤNG Ý TƯỞNG CỦA BẠN: XÓA SẠCH DỮ LIỆU CŨ, CHỈ GIỮ LẠI THÁNG ĐANG XEM
-            // Nghĩa là ta không gộp (concat) vào mảng cũ nữa, ta ghi đè hoàn toàn!
+            // ✅ ÁP DỤNG NGUYÊN LÝ CAMERA: XÓA BỎ THÁNG CŨ NHẤT ĐỂ LẤY CHỖ
+            var currentMonths = new Set();
+            currentRecs.forEach(function(r) {
+                if (r.date && r.date.length >= 7) currentMonths.add(r.date.substring(0, 7));
+            });
             
-            // Thêm cả ID vào để lọc trùng trong nội bộ tháng đó
+            // Nếu máy đang chứa từ 2 tháng trở lên (VD: T10, T11), ta phải xóa tháng cũ nhất (T10)
+            // Để nhường chỗ cho tháng mới (T8)
+            var sortedCurrentMonths = Array.from(currentMonths).sort(); // Xếp từ cũ đến mới
+            
+            // Giữ lại tối đa 1 tháng cũ trong máy, phần còn lại xóa đi
+            if (sortedCurrentMonths.length >= 2) {
+                var monthToRemove = sortedCurrentMonths[0]; // Tháng cũ nhất (VD: 2026-10)
+                
+                // Lọc bỏ các bản ghi của tháng cũ nhất
+                currentRecs = currentRecs.filter(function(r) {
+                    return !r.date || !r.date.startsWith(monthToRemove);
+                });
+                console.log('🧹 Đã xóa dữ liệu tháng ' + monthToRemove + ' để nhường chỗ cho ' + monthStr);
+            }
+            
+            // Gộp dữ liệu mới (T8) vào cùng dữ liệu được giữ lại (T11)
+            var allRecs = currentRecs.concat(newRecs);
+            
+            // Lọc trùng ID
             var uniqueRecs = [];
             var seenIds = new Set();
-            newRecs.forEach(function(r) {
+            allRecs.forEach(function(r) {
                 if (r && r.id && !seenIds.has(r.id)) {
                     seenIds.add(r.id);
                     uniqueRecs.push(r);
                 }
             });
-
-            // Cập nhật biến môi trường để biết tháng nào đang được ưu tiên (cho lần F5 sau)
-            sessionStorage.setItem('active_view_month', monthStr);
-            sessionStorage.setItem('active_view_data', JSON.stringify(uniqueRecs));
-
-            // Lưu đè lên LocalStorage (Bây giờ máy chỉ có đúng dữ liệu của T8)
+            
+            // Lưu vào bộ nhớ máy
             try {
                 localStorage.setItem('r', JSON.stringify(uniqueRecs));
-                console.log('✅ Đã tải đè dữ liệu tháng ' + monthStr + '. Các tháng cũ đã được giải phóng!');
+                console.log('✅ Đã tải ' + monthStr + '. Máy hiện chứa: ' + monthStr + ' và tháng gần nhất.');
             } catch (e) {
-                console.warn("Không thể lưu LocalStorage, sẽ dùng sessionStorage tạm thời.");
+                // Nếu vẫn tràn bộ nhớ (do T8 quá lớn), xóa luôn cả tháng gần nhất (chỉ giữ T8)
+                console.warn('🚨 Vẫn tràn bộ nhớ, đang dọn dẹp mạnh tay...');
+                var finalRecs = newRecs; // Chỉ giữ tháng đang xem
+                localStorage.setItem('r', JSON.stringify(finalRecs));
             }
             
+            // Cập nhật lại giao diện
             if (typeof refreshAllUI === 'function') refreshAllUI();
             if (typeof renderStatistics === 'function') renderStatistics();
             if (typeof applyStatsFilters === 'function') applyStatsFilters();
