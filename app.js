@@ -3845,8 +3845,8 @@ async function loadPersonalRecords() {
     var empInput = document.getElementById('personalEmpInput'),
         empName = empInput ? empInput.value.trim() : '';
     
+    // Lấy loại thời gian đang chọn (all, month, year, quarter...)
     var dateType = localStorage.getItem('personal_date_type') || 'all',
-        dateVal = document.getElementById('personalDateInput')?.value || '',
         monthVal = document.getElementById('personalMonthInput')?.value || '';
         
     var summaryEl = document.getElementById('personalSummary'),
@@ -3870,19 +3870,18 @@ async function loadPersonalRecords() {
         return;
     }
 
-    // Lấy dữ liệu hiện có trong máy (LocalStorage)
+    // 1. Lấy dữ liệu hiện có trong máy (LocalStorage)
     var rec = L(REC_KEY, []);
     var personalRecs = rec.filter(function(r) { return r.employee === matchedEmp.name; });
 
-    // Xác định xem có cần tải từ Firebase không
+    // 2. Kiểm tra xem dữ liệu có sẵn trong máy có đủ dùng không
     var isLongTerm = (dateType === 'all' || dateType === 'year' || dateType === 'quarter' || dateType === 'first-half' || dateType === 'second-half');
-    
+    var needFetch = false;
+    var startQ = '2000-01-01';
+    var endQ = '2100-12-31';
+
     if (isLongTerm) {
-        summaryEl.innerHTML = '<div class="muted" style="text-align:center;padding:20px;">⏳ Đang tải dữ liệu từ Firebase...</div>';
-        recordsEl.innerHTML = '';
-        
-        var startQ = '2000-01-01';
-        var endQ = '2100-12-31';
+        needFetch = true; // Xem dài hạn thì phải lấy full từ Firebase
         var yearVal = document.getElementById('personalYearInput')?.value || '';
         var qStart = localStorage.getItem('quarter_start');
         var qEnd = localStorage.getItem('quarter_end');
@@ -3897,44 +3896,74 @@ async function loadPersonalRecords() {
         } else if (dateType === 'second-half') {
             var y2 = new Date().getFullYear();
             startQ = y2 + '-07-01'; endQ = y2 + '-12-31';
-        } else if (dateType === 'all') {
-            // Lấy từ tháng đầu tiên có dữ liệu trong máy
-            if (personalRecs.length > 0) {
-                personalRecs.sort((a,b) => a.date.localeCompare(b.date));
-                startQ = personalRecs[0].date;
-            }
         }
-
-        if (typeof db !== 'undefined') {
-            try {
-                var snapshot = await db.ref('chamcong/records')
-                    .orderByChild('date')
-                    .startAt(startQ)
-                    .endAt(endQ)
-                    .once('value');
-                
-                var fbData = snapshot.val();
-                if (fbData) {
-                    var allFbRecs = Array.isArray(fbData) ? fbData : Object.values(fbData);
-                    personalRecs = allFbRecs.filter(function(r) { return r.employee === matchedEmp.name; });
-                } else {
-                    personalRecs = [];
-                }
-            } catch(e) {
-                console.error("Lỗi tải từ Firebase:", e);
-                summaryEl.innerHTML = '<div class="muted" style="text-align:center;padding:20px;color:#dc2626;">❌ Lỗi kết nối Firebase. Vui lòng thử lại.</div>';
-                return;
-            }
-        }
-    } else {
-        // Nếu xem theo Tháng, chỉ cần lọc dữ liệu trong máy
-        if (dateType === 'month' && monthVal) {
+    } else if (dateType === 'month' && monthVal) {
+        // Nếu xem theo tháng, kiểm tra xem máy có dữ liệu của tháng đó chưa
+        var hasMonthData = personalRecs.some(function(r) { return r.date.startsWith(monthVal); });
+        if (!hasMonthData) {
+            needFetch = true;
+            startQ = monthVal + '-01';
+            endQ = monthVal + '-31';
+        } else {
+            // Nếu có rồi thì chỉ việc lọc ra
             personalRecs = personalRecs.filter(function(r) { return r.date.startsWith(monthVal); });
         }
     }
 
+    // 3. Tải từ Firebase nếu cần (Tháng đó máy chưa có, hoặc xem Năm/Quý)
+    if (needFetch && typeof db !== 'undefined') {
+        summaryEl.innerHTML = '<div class="muted" style="text-align:center;padding:20px;">⏳ Đang tải dữ liệu chính xác từ Firebase...</div>';
+        recordsEl.innerHTML = '';
+        
+        try {
+            var snapshot = await db.ref('chamcong/records')
+                .orderByChild('date')
+                .startAt(startQ)
+                .endAt(endQ)
+                .once('value');
+            
+            var fbData = snapshot.val();
+            if (fbData) {
+                var allFbRecs = Array.isArray(fbData) ? fbData : Object.values(fbData);
+                personalRecs = allFbRecs.filter(function(r) { return r.employee === matchedEmp.name; });
+            } else {
+                personalRecs = [];
+            }
+
+            // ✅ QUAN TRỌNG: Nếu là xem theo Tháng, hãy lưu luôn vào LocalStorage 
+            // để lần sau F5 không phải gọi lại Firebase (tiết kiệm Quota)
+            if (dateType === 'month' && personalRecs.length > 0) {
+                var currentRecs = L(REC_KEY, []);
+                // Gộp và lọc trùng ID trước khi lưu
+                var mergedRecs = currentRecs.concat(personalRecs);
+                var uniqueRecs = [];
+                var seenIds = new Set();
+                mergedRecs.forEach(function(r) {
+                    if (r && r.id && !seenIds.has(r.id)) {
+                        seenIds.add(r.id);
+                        uniqueRecs.push(r);
+                    }
+                });
+                
+                // Áp dụng giới hạn Camera 5000 bản ghi
+                if (uniqueRecs.length > 5000) {
+                    uniqueRecs.sort(function(a, b) { return new Date(b.date) - new Date(a.date); });
+                    uniqueRecs = uniqueRecs.slice(0, 5000);
+                }
+                
+                localStorage.setItem('r', JSON.stringify(uniqueRecs));
+                console.log('✅ Đã lưu tháng ' + monthVal + ' vào bộ nhớ máy để dùng cho lần sau.');
+            }
+
+        } catch(e) {
+            console.error("Lỗi tải từ Firebase:", e);
+            summaryEl.innerHTML = '<div class="muted" style="text-align:center;padding:20px;color:#dc2626;">❌ Lỗi kết nối Firebase. Vui lòng thử lại.</div>';
+            return;
+        }
+    }
+
     // =========================================================
-    // BẮT ĐẦU PHẦN VẼ GIAO DIỆN (Giữ nguyên logic cũ của bạn)
+    // BẮT ĐẦU VẼ GIAO DIỆN (Giữ nguyên logic tính toán của bạn)
     // =========================================================
     personalRecs.sort(function(a, b) { return b.date.localeCompare(a.date); });
     
