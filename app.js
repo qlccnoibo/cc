@@ -5940,45 +5940,39 @@ window.loadOldMonthData = async function(monthStr) {
     var hasData = currentRecs.some(function(r) { return r.date && r.date.startsWith(monthStr); });
     if (hasData) return; 
 
-    showAlert('⏳ Đang tải dữ liệu tháng ' + monthStr + ' từ Firebase...');
-    
+    // Hiển thị thông báo
+    var statusDiv = document.createElement('div');
+    statusDiv.id = 'loadingStatus';
+    statusDiv.style.cssText = 'position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#3b82f6; color:white; padding:10px 20px; border-radius:8px; font-size:14px; z-index:99999; box-shadow: 0 4px 12px rgba(0,0,0,0.2);';
+    statusDiv.textContent = '⏳ Đang tải dữ liệu tháng ' + monthStr + '...';
+    document.body.appendChild(statusDiv);
+
     try {
         var startDate = monthStr + '-01';
         var endDate = monthStr + '-31';
 
-        var snapshot = await db.ref('chamcong/records')
+        // Tạo một Promise với thời gian chờ tối đa (Timeout 15 giây)
+        var fetchPromise = db.ref('chamcong/records')
             .orderByChild('date')
             .startAt(startDate)
             .endAt(endDate)
-            .limitToLast(2000)
+            .limitToLast(2500) // Giới hạn số lượng để không bị Firebase chặn
             .once('value');
+
+        var timeoutPromise = new Promise(function(resolve, reject) {
+            setTimeout(function() {
+                reject(new Error('Quá thời gian chờ (Timeout). Vui lòng kiểm tra lại mạng hoặc thử lại sau.'));
+            }, 15000); // 15 giây
+        });
+
+        // Đua giữa việc tải dữ liệu và timeout
+        var snapshot = await Promise.race([fetchPromise, timeoutPromise]);
             
         var data = snapshot.val();
         if (data) {
             var newRecs = Array.isArray(data) ? data : Object.values(data);
             
-            // ✅ ÁP DỤNG NGUYÊN LÝ CAMERA: XÓA BỎ THÁNG CŨ NHẤT ĐỂ LẤY CHỖ
-            var currentMonths = new Set();
-            currentRecs.forEach(function(r) {
-                if (r.date && r.date.length >= 7) currentMonths.add(r.date.substring(0, 7));
-            });
-            
-            // Nếu máy đang chứa từ 2 tháng trở lên (VD: T10, T11), ta phải xóa tháng cũ nhất (T10)
-            // Để nhường chỗ cho tháng mới (T8)
-            var sortedCurrentMonths = Array.from(currentMonths).sort(); // Xếp từ cũ đến mới
-            
-            // Giữ lại tối đa 1 tháng cũ trong máy, phần còn lại xóa đi
-            if (sortedCurrentMonths.length >= 2) {
-                var monthToRemove = sortedCurrentMonths[0]; // Tháng cũ nhất (VD: 2026-10)
-                
-                // Lọc bỏ các bản ghi của tháng cũ nhất
-                currentRecs = currentRecs.filter(function(r) {
-                    return !r.date || !r.date.startsWith(monthToRemove);
-                });
-                console.log('🧹 Đã xóa dữ liệu tháng ' + monthToRemove + ' để nhường chỗ cho ' + monthStr);
-            }
-            
-            // Gộp dữ liệu mới (T8) vào cùng dữ liệu được giữ lại (T11)
+            // Gộp dữ liệu cũ và mới
             var allRecs = currentRecs.concat(newRecs);
             
             // Lọc trùng ID
@@ -5991,26 +5985,43 @@ window.loadOldMonthData = async function(monthStr) {
                 }
             });
             
-            // Lưu vào bộ nhớ máy
+            // Áp dụng nguyên lý Camera: Chỉ giữ tối đa 5000 bản ghi
+            if (uniqueRecs.length > 5000) {
+                uniqueRecs.sort(function(a, b) { return new Date(b.date) - new Date(a.date); });
+                uniqueRecs = uniqueRecs.slice(0, 5000);
+            }
+
             try {
                 localStorage.setItem('r', JSON.stringify(uniqueRecs));
-                console.log('✅ Đã tải ' + monthStr + '. Máy hiện chứa: ' + monthStr + ' và tháng gần nhất.');
-            } catch (e) {
-                // Nếu vẫn tràn bộ nhớ (do T8 quá lớn), xóa luôn cả tháng gần nhất (chỉ giữ T8)
-                console.warn('🚨 Vẫn tràn bộ nhớ, đang dọn dẹp mạnh tay...');
-                var finalRecs = newRecs; // Chỉ giữ tháng đang xem
-                localStorage.setItem('r', JSON.stringify(finalRecs));
+                console.log('✅ Đã tải thành công tháng ' + monthStr);
+            } catch (storageError) {
+                console.warn('🚨 Tràn bộ nhớ LocalStorage, đang cắt bớt...');
+                uniqueRecs = uniqueRecs.slice(0, 2000);
+                localStorage.setItem('r', JSON.stringify(uniqueRecs));
             }
             
-            // Cập nhật lại giao diện
             if (typeof refreshAllUI === 'function') refreshAllUI();
             if (typeof renderStatistics === 'function') renderStatistics();
             if (typeof applyStatsFilters === 'function') applyStatsFilters();
             if (typeof window._statsData !== 'undefined') window._statsData = uniqueRecs;
+            
+            statusDiv.style.background = '#10b981';
+            statusDiv.textContent = '✅ Tải dữ liệu thành công!';
+        } else {
+            statusDiv.style.background = '#f59e0b';
+            statusDiv.textContent = '📭 Tháng này chưa có dữ liệu.';
         }
     } catch (error) {
         console.error('Lỗi tải tháng cũ:', error);
-        showAlert('❌ Lỗi tải dữ liệu: ' + error.message);
+        statusDiv.style.background = '#ef4444';
+        statusDiv.textContent = '❌ Lỗi: ' + error.message;
+    } finally {
+        // Xóa thông báo sau 3 giây
+        setTimeout(function() {
+            if (statusDiv && statusDiv.parentNode) {
+                statusDiv.remove();
+            }
+        }, 3000);
     }
 };
 
