@@ -5854,7 +5854,7 @@ document.addEventListener('change', function(e) {
 
 var _lastUpdateTime = 0;
 
-window.forceUpdateFromFirebase = function() {
+window.forceUpdateFromFirebase = async function() {
     if (typeof db === 'undefined') return;
     
     var now = Date.now();
@@ -5866,79 +5866,80 @@ window.forceUpdateFromFirebase = function() {
     }
     
     _lastUpdateTime = now;
-    showAlert('⏳ Đang kiểm tra dữ liệu mới...');
+    showAlert('⏳ Đang kiểm tra dữ liệu mới trong ngày hôm nay...');
     
-    // Lấy mốc thời gian lần cuối nhân viên này cập nhật
-    var lastSeen = parseInt(localStorage.getItem('last_seen_update') || '0');
+    try {
+        // ✅ GIẢI PHÁP: Chỉ tải dữ liệu của ngày hôm nay để tránh quét toàn bộ CSDL
+        var todayStr = getLocalDateStr(); // VD: '2026-11-11'
+        
+        // Tải song song: Danh mục cơ bản + Records của riêng ngày hôm nay
+        var results = await Promise.all([
+            db.ref('chamcong/employees').once('value'),
+            db.ref('chamcong/groups').once('value'),
+            db.ref('chamcong/hidden_emps').once('value'),
+            db.ref('chamcong/records').orderByChild('date').equalTo(todayStr).once('value') // Chỉ lấy hôm nay
+        ]);
 
-    // Tải song song: Thông tin cơ bản + CHỈ NHỮNG BẢN GHI MỚI
-    Promise.all([
-        db.ref('chamcong/employees').once('value'),
-        db.ref('chamcong/groups').once('value'),
-        db.ref('chamcong/hidden_emps').once('value'),
-        db.ref('chamcong/records').orderByChild('timestamp').startAt(lastSeen + 1).once('value')
-    ]).then(function(results) {
         var empData = results[0].val();
         var groupData = results[1].val();
         var hiddenData = results[2].val();
         var newRecData = results[3].val();
 
-        // Cập nhật nhân viên, nhóm, danh sách ẩn
+        // Cập nhật nhân viên, nhóm
         if (empData) localStorage.setItem('e', JSON.stringify(empData));
         if (groupData) localStorage.setItem('g', JSON.stringify(Object.values(groupData)));
         if (hiddenData) localStorage.setItem('hidden_emps', JSON.stringify(hiddenData));
 
-        // Cập nhật bản ghi mới
+        // Cập nhật bản ghi mới của ngày hôm nay
+        var addedCount = 0;
         if (newRecData) {
             var newRecs = Object.values(newRecData);
-            var currentRecs = JSON.parse(localStorage.getItem('r') || '[]');
+            var currentRecs = L(REC_KEY, []);
             
-            // Gộp dữ liệu mới vào dữ liệu cũ
+            // Gộp dữ liệu
             var allRecs = currentRecs.concat(newRecs);
             
-            // Loại bỏ trùng lặp
+            // Lọc trùng ID
             var uniqueRecs = [];
             var seenIds = new Set();
             allRecs.forEach(function(r) {
-                if (r.id && !seenIds.has(r.id)) {
+                if (r && r.id && !seenIds.has(r.id)) {
                     seenIds.add(r.id);
                     uniqueRecs.push(r);
+                    // Nếu ID này chưa có trong máy cũ, đếm là 1 bản ghi mới
+                    if (!currentRecs.some(cr => cr.id === r.id)) addedCount++;
                 }
             });
             
-            // 👉 DỌN DẸP BỘ NHỚ: Chỉ giữ lại 4 tháng gần nhất
-            var cutoffDate = new Date();
-            cutoffDate.setMonth(cutoffDate.getMonth() - 4);
-            var cutoffStr = cutoffDate.toISOString().split('T')[0];
+            // Áp dụng giới hạn 5000 bản ghi (Nguyên lý Camera)
+            if (uniqueRecs.length > 5000) {
+                uniqueRecs.sort(function(a, b) { return new Date(b.date) - new Date(a.date); });
+                uniqueRecs = uniqueRecs.slice(0, 5000);
+            }
             
-            var trimmedRecs = uniqueRecs.filter(function(r) {
-                return r.date >= cutoffStr;
-            });
-            
-            localStorage.setItem('r', JSON.stringify(trimmedRecs));
-            console.log('✅ Đã tải thêm ' + newRecs.length + ' bản ghi mới. Đã dọn dẹp, còn lại: ' + trimmedRecs.length);
-            showAlert('✅ Đã cập nhật thêm ' + newRecs.length + ' bản ghi mới!');
-        } else {
-            showAlert('✅ Dữ liệu của bạn đã là mới nhất!');
+            localStorage.setItem('r', JSON.stringify(uniqueRecs));
+            window._statsData = uniqueRecs;
         }
 
-        // Lưu mốc thời gian
+        // Lưu mốc thời gian & Ẩn chấm đỏ
         localStorage.setItem('last_seen_update', Date.now().toString());
-        
-        // Ẩn chấm đỏ
         var badge = document.getElementById('updateBadge');
         if (badge) badge.style.display = 'none'; 
         
-        // Render lại giao diện
+        // Render lại
         if (typeof refreshAllUI === 'function') refreshAllUI();
-        if (typeof rEmp === 'function') rEmp();
-        if (typeof renderStatistics === 'function') renderStatistics();
         
-    }).catch(function(e) {
+        if (addedCount > 0) {
+            showAlert('✅ Đã cập nhật thêm ' + addedCount + ' bản ghi mới của ngày hôm nay!');
+        } else {
+            showAlert('✅ Dữ liệu của bạn đã là mới nhất!');
+        }
+        
+    } catch(e) {
         console.error('Lỗi Firebase:', e);
         showAlert('❌ Lỗi tải dữ liệu: ' + e.message);
-    });
-};
+    }
+};;
 
 // Hàm tự động dọn dẹp dữ liệu cũ trên máy (Chỉ giữ 4 tháng gần nhất)
 window.autoCleanOldData = function() {
