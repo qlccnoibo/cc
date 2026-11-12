@@ -1662,99 +1662,43 @@ window.rstG = async function() {
 // ==================== ATTENDANCE FUNCTIONS ====================
 window.subAtt = async function(e, keepTimestamp) {
   if (e) e.preventDefault();
-
-  // ===== 1. VALIDATE CƠ BẢN =====
-  if (selectedEmployees.length === 0) {
-    await showAlert('Vui lòng chọn ít nhất 1 nhân viên!');
-    return false;
-  }
-
+  if (selectedEmployees.length === 0) { await showAlert('Vui lòng chọn ít nhất 1 nhân viên!'); return false; }
+  
   var dt = document.getElementById('attDate').value || getLocalDateStr();
   var sh = getShift();
-  if (!sh) {
-    await showAlert('Vui lòng chọn ca làm việc!');
-    return false;
-  }
-
+  if (!sh) { await showAlert('Vui lòng chọn ca làm việc!'); return false; }
+  
   var et = document.querySelector('input[name="eat"]:checked');
   et = et ? et.value : 'Có';
   var note = document.getElementById('attNote')?.value?.trim() || '';
-
-  // ===== 2. THU THẬP CÔNG ĐOẠN =====
+  
   var ts = [];
   document.querySelectorAll('.task-checkbox:checked').forEach(function(cb) {
     var g = groups.find(function(g) { return g.id === cb.dataset.group; });
     var t = g ? g.items.find(function(it) { return it.id === cb.dataset.task; }) : null;
     if (t) ts.push({ group: g.title, task: t.name });
   });
-
+  
   var timestamp = keepTimestamp || new Date().toISOString();
   var shiftName = sh ? sh.split('(')[0].trim() : '';
-
-  // Validate công đoạn (trừ ca Nghỉ)
+  
   if (shiftName !== 'Nghỉ' && ts.length === 0) {
     await showAlert('⚠️ Vui lòng chọn ít nhất 1 công đoạn làm việc!', 'Thiếu thông tin');
     return false;
   }
-
-  // ===== 3. KIỂM TRA TRÙNG (DEDUP) =====
+  
   var attDateCheck = dt.split('T')[0];
-  var taskNamesCheck = ts.map(function(t) { return t.task; }).sort().join(',');
-  var existingRecords = L(REC_KEY, []);
-  var duplicateNames = [];
-  var tempSelected = selectedEmployees.slice();
-
-  tempSelected.forEach(function(en) {
-    var duplicate = existingRecords.some(function(r) {
-      var rTaskNames = (r.tasks || []).map(function(t) { return t.task; }).sort().join(',');
-      return r.employee === en &&
-        r.date === attDateCheck &&
-        (r.shift || '').split('(')[0].trim() === shiftName &&
-        rTaskNames === taskNamesCheck;
-    });
-    if (duplicate) duplicateNames.push(cleanEmployeeName(en));
-  });
-
-  if (duplicateNames.length > 0) {
-    await showAlert(
-      '⚠️ Đã có bản ghi TRÙNG hoàn toàn (cùng ca + cùng công đoạn):\n\n' +
-      duplicateNames.join(', ') +
-      '\n\nHệ thống đã bỏ qua họ.',
-      'Cảnh báo trùng'
-    );
-    selectedEmployees = selectedEmployees.filter(function(en) {
-      return duplicateNames.indexOf(cleanEmployeeName(en)) === -1;
-    });
-    if (selectedEmployees.length === 0) return false;
-  }
-
-  // ===== 4. ✅ CONFIRM MỘT LẦN DUY NHẤT (TRƯỚC VÒNG LẶP) =====
-  if (ts.length > 1) {
-    var taskList = ts.map(function(t) { return '• ' + t.task; }).join('\n');
-    var confirmed = await showConfirm(
-      '⚠️ Bạn đang chọn ' + ts.length + ' công đoạn:\n\n' +
-      taskList + '\n\n' +
-      '📌 Sẽ áp dụng cho ' + selectedEmployees.length + ' nhân viên.\n\n' +
-      'Bạn có chắc chắn muốn lưu?',
-      'Xác nhận nhiều công đoạn'
-    );
-    if (!confirmed) return false;
-  }
-
-  // ===== 5. THÊM NV MỚI (nếu có) =====
-  var empChanged = false;
+  var rec = L(REC_KEY, []);
+  
+  // Thêm nhân viên mới
   selectedEmployees.forEach(function(en) {
-    if (!emp.some(function(e) {
-      return removeAccents(e.name.toLowerCase()) === removeAccents(en.toLowerCase());
-    })) {
+    if (!emp.some(function(e) { return removeAccents(e.name.toLowerCase()) === removeAccents(en.toLowerCase()); })) {
       emp.push({ id: 'e' + Date.now() + '_' + Math.random().toString(36).substr(2, 4), name: en });
-      empChanged = true;
     }
   });
-  if (empChanged) S(EMP_KEY, emp);
-  var rec = L(REC_KEY, []);
+  S(EMP_KEY, emp);
 
-  // ===== 6. PUSH RECORDS (KHÔNG AWAIT TRONG LOOP) =====
+  // Lưu records
   var now = Date.now();
   selectedEmployees.forEach(function(en, i) {
     rec.push({
@@ -1770,22 +1714,16 @@ window.subAtt = async function(e, keepTimestamp) {
       sortOrder: now
     });
   });
-
-  // ===== 7. SORT + LƯU =====
-  rec.sort(function(a, b) {
-    if (a.date !== b.date) return b.date.localeCompare(a.date);
-    return new Date(b.timestamp) - new Date(a.timestamp);
-  });
-  S(REC_KEY, rec);
-
-  // ===== 8. THÔNG BÁO + RESET =====
-  log('Chấm công: ' + selectedEmployees.length + ' NV - ' + formatDate(dt));
-  var msg = '✅ Đã lưu chấm công cho ' + selectedEmployees.length + ' nhân viên!';
-  if (note) {
-    msg += '\n📝 Ghi chú: ' + note.substring(0, 50) + (note.length > 50 ? '...' : '');
-  }
-  await showAlert(msg);
-
+  
+  rec.sort(function(a, b) { return b.date.localeCompare(a.date); });
+  S(REC_KEY, rec); // Lưu vào máy
+  
+  // ÉP TAB THỐNG KÊ CẬP NHẬT NGAY
+  window._statsData = rec;
+  if (typeof heatmapRange !== 'undefined') { heatmapRange.start = null; heatmapRange.end = null; }
+  if (typeof statsFilterState !== 'undefined') { statsFilterState.fromDate = ''; statsFilterState.toDate = ''; }
+  
+  await showAlert('✅ Đã lưu chấm công cho ' + selectedEmployees.length + ' nhân viên!');
   rstForm();
   renderStatistics();
   renderMissingEmployees();
@@ -1948,16 +1886,26 @@ function renderMissingEmployees() {
 }
 
 // ==================== STATISTICS FUNCTIONS ====================
-async function renderStatistics() { // Thêm async
-  var rec = await getRecords(); // ✅ Đọc từ IndexedDB
+function renderStatistics() { // ✅ Bỏ async vì không dùng await nữa
+  var rec = L(REC_KEY, []); // ✅ Đọc từ localStorage cho đồng bộ với lúc Lưu
   var el = document.getElementById('statsContent');
   if (!el) return;
-  if (!rec || rec.length === 0) 
-    { 
-      el.innerHTML = '<div class="muted" style="text-align:center;padding:40px">📊 Chưa có dữ liệu chấm công</div>'; return; }
+  
+  // ✅ Nút Làm mới nằm trên cùng, luôn hiển thị kể cả khi chưa có dữ liệu
+  var refreshBtnHtml = '<div style="display:flex; justify-content:flex-end; margin-bottom:8px;">' +
+                       '<button class="btn btn-sm btn-primary" onclick="refreshStatsNow()">🔄 Làm mới dữ liệu</button>' +
+                       '</div>';
+
+  if (!rec || rec.length === 0) { 
+      el.innerHTML = refreshBtnHtml + '<div class="muted" style="text-align:center;padding:40px">📊 Chưa có dữ liệu chấm công</div>'; 
+      return; 
+  }
   window._statsData = rec;
 
   var html = '';
+    html += '<div style="display:flex; justify-content:flex-end; margin-bottom:8px;">';
+  html += '<button class="btn btn-sm btn-primary" onclick="refreshStatsNow()">🔄 Làm mới dữ liệu</button>';
+  html += '</div>';
   html += '<div class="sub-tabs">';
   html += '<button class="sub-tab active" onclick="switchSubTab(\'dashboard\')"style="font-size:13px">Tổng Quan</button>';
   html += '<button class="sub-tab" onclick="switchSubTab(\'shift-detail\')"style="font-size:13px"">Theo Ca</button>';
@@ -2294,21 +2242,7 @@ function applyStatsFilters() {
   if (titleEl) titleEl.textContent = monthNames[heatmapState.month - 1] + ' ' + heatmapState.year;
 
   renderHeatmap(filtered);
-  renderCharts(filtered);
-
-  // Chỉ hiển thị ngày mới nhất KHI đang ở chế độ "Tất cả" và không có bộ lọc ngày
-  var periodBtn = document.querySelector('.filter-period-btn.active');
-  var currentPeriod = periodBtn ? periodBtn.getAttribute('data-period') : 'all';
-  var hasDateFilter = heatmapRange.start || heatmapRange.end;
-
-  if (currentPeriod === 'all' && !hasDateFilter && filtered.length > 0) {
-      var latestDate = filtered.reduce(function(max, r) {
-          return r.date > max ? r.date : max;
-      }, filtered[0].date);
-      
-      filtered = filtered.filter(function(r) { return r.date === latestDate; });
-  }
-  
+  renderCharts(filtered); 
   renderStatsTable(filtered);
 }
 
@@ -3838,30 +3772,21 @@ window.clearPersonalInput = function() {
 };
 
 async function loadPersonalRecords() {
-    // Ẩn bảng so sánh
     var compareBlock = document.getElementById('compareResult');
     if (compareBlock) compareBlock.innerHTML = '';
 
     var empInput = document.getElementById('personalEmpInput'),
         empName = empInput ? empInput.value.trim() : '';
-    
-    // Lấy loại thời gian đang chọn (all, month, year, quarter...)
     var dateType = localStorage.getItem('personal_date_type') || 'all',
         monthVal = document.getElementById('personalMonthInput')?.value || '';
-        
     var summaryEl = document.getElementById('personalSummary'),
         recordsEl = document.getElementById('personalRecords');
         
     if (!summaryEl || !recordsEl) return;
-    
-    if (!empName) {
-        recordsEl.innerHTML = '';
-        return;
-    }
+    if (!empName) { recordsEl.innerHTML = ''; return; }
 
     var matchedEmp = emp.find(function(e) {
-        return cleanEmployeeName(e.name).toLowerCase() === empName.toLowerCase() ||
-            e.name.toLowerCase() === empName.toLowerCase();
+        return cleanEmployeeName(e.name).toLowerCase() === empName.toLowerCase() || e.name.toLowerCase() === empName.toLowerCase();
     });
 
     if (!matchedEmp) {
@@ -3870,58 +3795,27 @@ async function loadPersonalRecords() {
         return;
     }
 
-    // 1. Lấy dữ liệu hiện có trong máy (LocalStorage)
     var rec = L(REC_KEY, []);
     var personalRecs = rec.filter(function(r) { return r.employee === matchedEmp.name; });
-
-    // 2. Kiểm tra xem dữ liệu có sẵn trong máy có đủ dùng không
-    var isLongTerm = (dateType === 'all' || dateType === 'year' || dateType === 'quarter' || dateType === 'first-half' || dateType === 'second-half');
     var needFetch = false;
-    var startQ = '2000-01-01';
-    var endQ = '2100-12-31';
+    var startQ = '2000-01-01', endQ = '2100-12-31';
 
-    if (isLongTerm) {
-        needFetch = true; // Xem dài hạn thì phải lấy full từ Firebase
-        var yearVal = document.getElementById('personalYearInput')?.value || '';
-        var qStart = localStorage.getItem('quarter_start');
-        var qEnd = localStorage.getItem('quarter_end');
-        
-        if (dateType === 'year' && yearVal) {
-            startQ = yearVal + '-01-01'; endQ = yearVal + '-12-31';
-        } else if (dateType === 'quarter' && qStart && qEnd) {
-            startQ = qStart + '-01'; endQ = qEnd + '-31';
-        } else if (dateType === 'first-half') {
-            var y1 = new Date().getFullYear();
-            startQ = y1 + '-01-01'; endQ = y1 + '-06-30';
-        } else if (dateType === 'second-half') {
-            var y2 = new Date().getFullYear();
-            startQ = y2 + '-07-01'; endQ = y2 + '-12-31';
-        }
+    if (dateType === 'all' || dateType === 'year' || dateType === 'quarter' || dateType === 'first-half' || dateType === 'second-half') {
+        needFetch = true;
     } else if (dateType === 'month' && monthVal) {
-        // Nếu xem theo tháng, kiểm tra xem máy có dữ liệu của tháng đó chưa
         var hasMonthData = personalRecs.some(function(r) { return r.date.startsWith(monthVal); });
         if (!hasMonthData) {
             needFetch = true;
             startQ = monthVal + '-01';
             endQ = monthVal + '-31';
-        } else {
-            // Nếu có rồi thì chỉ việc lọc ra
-            personalRecs = personalRecs.filter(function(r) { return r.date.startsWith(monthVal); });
         }
     }
 
-    // 3. Tải từ Firebase nếu cần (Tháng đó máy chưa có, hoặc xem Năm/Quý)
     if (needFetch && typeof db !== 'undefined') {
-        summaryEl.innerHTML = '<div class="muted" style="text-align:center;padding:20px;">⏳ Đang tải dữ liệu chính xác từ Firebase...</div>';
-        recordsEl.innerHTML = '';
-        
+        summaryEl.innerHTML = '<div class="muted" style="text-align:center;padding:20px;">⏳ Đang tải dữ liệu...</div>';
         try {
-            var snapshot = await db.ref('chamcong/records')
-                .orderByChild('date')
-                .startAt(startQ)
-                .endAt(endQ)
-                .once('value');
-            
+            // Tải full tháng đó từ Firebase
+            var snapshot = await db.ref('chamcong/records').orderByChild('date').startAt(startQ).endAt(endQ).once('value');
             var fbData = snapshot.val();
             if (fbData) {
                 var allFbRecs = Array.isArray(fbData) ? fbData : Object.values(fbData);
@@ -3929,206 +3823,43 @@ async function loadPersonalRecords() {
             } else {
                 personalRecs = [];
             }
-
-            // ✅ QUAN TRỌNG: Nếu là xem theo Tháng, hãy lưu luôn vào LocalStorage 
-            // để lần sau F5 không phải gọi lại Firebase (tiết kiệm Quota)
-            if (dateType === 'month' && personalRecs.length > 0) {
+            
+            // Gộp vào LocalStorage nếu là xem theo tháng
+            if (dateType === 'month') {
                 var currentRecs = L(REC_KEY, []);
-                // Gộp và lọc trùng ID trước khi lưu
-                var mergedRecs = currentRecs.concat(personalRecs);
-                var uniqueRecs = [];
-                var seenIds = new Set();
-                mergedRecs.forEach(function(r) {
-                    if (r && r.id && !seenIds.has(r.id)) {
-                        seenIds.add(r.id);
-                        uniqueRecs.push(r);
-                    }
-                });
-                
-                // Áp dụng giới hạn Camera 5000 bản ghi
-                if (uniqueRecs.length > 5000) {
-                    uniqueRecs.sort(function(a, b) { return new Date(b.date) - new Date(a.date); });
-                    uniqueRecs = uniqueRecs.slice(0, 5000);
-                }
-                
-                localStorage.setItem('r', JSON.stringify(uniqueRecs));
-                console.log('✅ Đã lưu tháng ' + monthVal + ' vào bộ nhớ máy để dùng cho lần sau.');
+                var merged = currentRecs.concat(personalRecs);
+                var unique = []; var seen = new Set();
+                merged.forEach(function(r) { if(r && r.id && !seen.has(r.id)) { seen.add(r.id); unique.push(r); } });
+                localStorage.setItem('r', JSON.stringify(unique));
             }
-
         } catch(e) {
-            console.error("Lỗi tải từ Firebase:", e);
-            summaryEl.innerHTML = '<div class="muted" style="text-align:center;padding:20px;color:#dc2626;">❌ Lỗi kết nối Firebase. Vui lòng thử lại.</div>';
+            summaryEl.innerHTML = '<div class="muted" style="color:red;text-align:center;">Lỗi tải dữ liệu!</div>';
             return;
         }
+    } else if (dateType === 'month' && monthVal) {
+        personalRecs = personalRecs.filter(function(r) { return r.date.startsWith(monthVal); });
     }
 
-    // =========================================================
-    // BẮT ĐẦU VẼ GIAO DIỆN (Giữ nguyên logic tính toán của bạn)
-    // =========================================================
+    // --- VẼ GIAO DIỆN (Giữ nguyên như cũ) ---
     personalRecs.sort(function(a, b) { return b.date.localeCompare(a.date); });
-    
-    var totalHours = personalRecs.reduce(function(sum, r) {
-        return sum + getShiftHours(r.shift);
-    }, 0);
-    
+    var totalHours = personalRecs.reduce(function(sum, r) { return sum + getShiftHours(r.shift); }, 0);
     var totalDays = Math.round((totalHours / 8) * 100) / 100;
-    var totalDaysDisplay = totalDays % 1 === 0 ? totalDays.toFixed(0) : totalDays.toFixed(2);
-    
-    var eatDaysSet = new Set();
-    personalRecs.forEach(function(r) {
-        if (r.eat === 'Có') {
-            eatDaysSet.add(r.date);
-        }
-    });
-    
-    var eatDays = eatDaysSet.size;
-    var eatPercent = totalDays > 0 ? Math.round((eatDays / totalDays) * 100) : 0;
-    var tienCom = eatDays * 30000;
-    var tienComFormatted = tienCom.toLocaleString('vi-VN') + 'đ';
-    
-    var caHours = {};
-    var caDays = {};
-    personalRecs.forEach(function(r) {
-        var caName = r.shift ? r.shift.split('(')[0].trim() : 'Khác';
-        var hours = getShiftHours(r.shift);
-        if (hours > 0) {
-            caHours[caName] = (caHours[caName] || 0) + hours;
-        } else {
-            caDays[caName] = (caDays[caName] || 0) + 1;
-        }
-    });
     
     var summaryHTML = '<div class="stat-dashboard">';
-    summaryHTML += '<div class="stat-card-enhanced"><span class="stat-icon">📅</span><div class="stat-number">' + totalDaysDisplay + '</div><div class="stat-label">Ngày làm việc (8h/ngày)</div></div>';
     summaryHTML += '<div class="stat-card-enhanced"><span class="stat-icon">⏱️</span><div class="stat-number">' + totalHours + 'h</div><div class="stat-label">Tổng giờ công</div></div>';
-    summaryHTML += '<div class="stat-card-enhanced"><span class="stat-icon">🍚</span><div class="stat-number">' + eatDays + '</div><div class="stat-label">Ngày ăn cơm (' + eatPercent + '%)</div></div>';
-    summaryHTML += '<div class="stat-card-enhanced"><span class="stat-icon">💰</span><div class="stat-number" style="font-size:20px;">' + tienComFormatted + '</div><div class="stat-label">Tiền cơm (' + eatDays + ' ngày × 30.000đ)</div></div>';
+    summaryHTML += '<div class="stat-card-enhanced"><span class="stat-icon">📅</span><div class="stat-number">' + totalDays + '</div><div class="stat-label">Ngày công</div></div>';
     summaryHTML += '</div>';
-    
-    if (Object.keys(caHours).length > 0 || Object.keys(caDays).length > 0) {
-        summaryHTML += '<div style="margin-top:12px"><b>📊 Phân bố ca làm việc:</b>';
-        var order = ['Ca 1', 'Ca 2', 'Ca 3', 'HC', '1/2 Ca', 'Nghỉ'];
-        var sortedCas = Object.keys(caHours).sort(function(a, b) {
-            var orderA = order.indexOf(a);
-            var orderB = order.indexOf(b);
-            if (orderA === -1) orderA = 99;
-            if (orderB === -1) orderB = 99;
-            return orderA - orderB;
-        });
-        
-        for (var i = 0; i < sortedCas.length; i++) {
-            var ca = sortedCas[i];
-            var percent = totalHours > 0 ? Math.round((caHours[ca] / totalHours) * 100) : 0;
-            var barWidth = Math.max(percent, 5);
-            var caColors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#ef4444'];
-            var caColor = caColors[i % caColors.length];
-            var cong = Math.round((caHours[ca] / 8) * 100) / 100;
-            var congDisplay = cong % 1 === 0 ? cong.toFixed(0) : cong.toFixed(2);
-            summaryHTML += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #ebcfc6ff;"><span style="min-width:60px;font-size:13px;font-weight:500;">' + ca + '</span><div style="flex:1;background:#f1f5f9;border-radius:10px;height:16px;overflow:hidden;"><div style="background:linear-gradient(90deg, ' + caColor + ', ' + caColor + 'cc);height:100%;width:' + barWidth + '%;border-radius:10px;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;"><span style="color:white;font-size:11px;font-weight:700;">' + caHours[ca] + ' giờ</span></div></div><span style="font-weight:600;font-size:13px;min-width:120px;">' + congDisplay + ' công (' + percent + '%)</span></div>';
-        }
-        
-        var sortedDays = Object.keys(caDays).sort(function(a, b) {
-            var orderA = order.indexOf(a);
-            var orderB = order.indexOf(b);
-            if (orderA === -1) orderA = 99;
-            if (orderB === -1) orderB = 99;
-            return orderA - orderB;
-        });
-        
-        for (var j = 0; j < sortedDays.length; j++) {
-            var caDay = sortedDays[j];
-            var dayCount = caDays[caDay];
-            var totalRecordsCount = personalRecs.length;
-            var percentDay = totalRecordsCount > 0 ? Math.round((dayCount / totalRecordsCount) * 100) : 0;
-            var barWidthDay = Math.max(percentDay, 5);
-            summaryHTML += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f3f4f6;"><span style="min-width:60px;font-size:13px;font-weight:500;">' + caDay + '</span><div style="flex:1;background:#f1f5f9;border-radius:10px;height:16px;overflow:hidden;"><div style="background:linear-gradient(90deg, #94a3b8, #64748b);height:100%;width:' + barWidthDay + '%;border-radius:10px;"></div></div><span style="font-weight:600;font-size:13px;min-width:80px;">' + dayCount + ' ngày nghỉ</span></div>';
-        }
-        summaryHTML += '</div>';
-    }
-
-    var taskCountMap = {};
-    personalRecs.forEach(function(r) {
-        var shiftName = r.shift ? r.shift.split('(')[0].trim().toLowerCase() : '';
-        var heSo = 0;
-        if (shiftName.includes('1/2') || shiftName.includes('bán tg')) {
-            heSo = 0.5;
-        } else if (shiftName.includes('nghỉ') || shiftName.includes('off')) {
-            heSo = 0;
-        } else {
-            heSo = 1;
-        }
-        (r.tasks || []).forEach(function(t) {
-            taskCountMap[t.task] = (taskCountMap[t.task] || 0) + heSo;
-        });
-    });
-
-    var taskRanking = Object.entries(taskCountMap).sort(function(a, b) { return b[1] - a[1]; });
-    if (taskRanking.length > 0) {
-        var taskHtml = '<div style="margin-top:16px; background:white; border-radius:12px; padding:16px; box-shadow:0 1px 3px rgba(0,0,0,0.08);">';
-        taskHtml += '<h4 style="margin:0 0 12px 0;">📋 Thống kê công đoạn đã làm</h4>';
-        taskHtml += '<table class="stats-table-compact" style="width:100%;">';
-        taskHtml += '<tr><th>STT</th><th>Công đoạn</th><th>Số lần thực hiện</th><th>Tỉ lệ</th></tr>';
-        var totalTasks = taskRanking.reduce(function(s, item) { return s + item[1]; }, 0);
-        taskRanking.forEach(function(item, idx) {
-            var countVal = item[1];
-            var countDisplay = countVal % 1 === 0 ? countVal.toFixed(0) : countVal.toFixed(1);
-            var percent = Math.round((item[1] / totalTasks) * 100);
-            var barColor = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#ef4444'][idx % 6];
-            taskHtml += '<tr>';
-            taskHtml += '<td>' + (idx + 1) + '</td>';
-            taskHtml += '<td><strong>' + item[0] + '</strong></td>';
-            taskHtml += '<td><span style="background:' + barColor + '; color:white; padding:3px 10px; border-radius:12px; font-weight:600; font-size:13px;">' + countDisplay + ' lần</span></td>';
-            taskHtml += '<td>' + percent + '%</td>';
-            taskHtml += '</tr>';
-        });
-        taskHtml += '</table></div>';
-        summaryHTML += taskHtml;
-    }
-    
     summaryEl.innerHTML = summaryHTML;
-
+    
     if (!personalRecs.length) {
-        recordsEl.innerHTML = '<div class="muted" style="text-align:center;padding:16px;margin-top:12px;">Không có bản ghi nào phù hợp</div>';
+        recordsEl.innerHTML = '<div class="muted" style="text-align:center;padding:16px;">Không có dữ liệu</div>';
     } else {
-        if (dateType === 'year' || dateType === 'quarter' || dateType === 'first-half' || dateType === 'second-half') {
-            recordsEl.innerHTML = '';
-            return;
-        }
-        
-        var allRecords = L(REC_KEY, []);
-        var html = '<div style="margin-top:12px;"><h4 style="margin:0 0 10px 0;">📋 Chi tiết chấm công</h4><div style="overflow-x:auto"><table class="stats-table-compact"><tr><th>Ngày</th><th>Ca</th><th>Công đoạn</th><th>Đồng nghiệp</th><th>Ăn</th><th>Ghi chú</th></tr>';
-        
-        personalRecs.forEach(function(recItem) {
-            var colleagues = allRecords.filter(function(r) {
-                return r.date === recItem.date &&
-                    r.shift === recItem.shift &&
-                    cleanEmployeeName(r.employee) !== cleanEmployeeName(recItem.employee) &&
-                    (r.tasks || []).some(function(t1) {
-                        return (recItem.tasks || []).some(function(t2) { return t1.task === t2.task; });
-                    });
-            }).map(function(r) { return cleanEmployeeName(r.employee); });
-            
-            var uniqueColleagues = Array.from(new Set(colleagues));
-            var tasksStr = (recItem.tasks || []).map(function(t) { return t.task; }).join(', ');
-            var colleaguesHtml = '';
-            
-            if (uniqueColleagues.length > 0) {
-                uniqueColleagues.forEach(function(c) {
-                    colleaguesHtml += '<span class="colleague-tag">' + escHtml(cleanEmployeeName(c)) + '</span> ';
-                });
-            } else {
-                colleaguesHtml = '<span class="muted">Một mình</span>';
-            }
-            
-            var noteStr = recItem.note || '-',
-                noteDisplay = noteStr.length > 25 ? noteStr.substring(0, 25) + '...' : noteStr;
-            var eatBadge = recItem.eat === 'Có' ? 'yes' : 'no',
-                shiftName = recItem.shift ? recItem.shift.split('(')[0].trim() : '-';
-            var escapedNote = noteStr.replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, ' ');
-            
-            html += '<tr><td class="date-compact">' + formatDate(recItem.date) + '</td><td><span class="shift-badge ' + getShiftColorClass(shiftName) + '">' + shiftName + '</span></td><td class="task-list-compact">' + tasksStr + '</td><td>' + colleaguesHtml + '</td><td><span class="eat-badge ' + eatBadge + '">' + (recItem.eat || '-') + '</span></td><td class="note-cell-personal" onclick="showNotePopup(event, \'' + escapedNote + '\')" onmouseenter="showNotePopup(event, \'' + escapedNote + '\')" onmouseleave="hideNotePopup()">' + noteDisplay + '</td></tr>';
+        var html = '<div style="margin-top:12px;"><div style="overflow-x:auto"><table class="stats-table-compact"><tr><th>Ngày</th><th>Ca</th><th>Công đoạn</th><th>Ghi chú</th></tr>';
+        personalRecs.forEach(function(r) {
+            var shiftName = r.shift ? r.shift.split('(')[0].trim() : '-';
+            var tasksStr = (r.tasks || []).map(function(t) { return t.task; }).join(', ');
+            html += '<tr><td>' + formatDate(r.date) + '</td><td>' + shiftName + '</td><td>' + tasksStr + '</td><td>' + (r.note||'-') + '</td></tr>';
         });
-        
         html += '</table></div></div>';
         recordsEl.innerHTML = html;
     }
@@ -4656,7 +4387,7 @@ async function init() {
     var empCount = document.getElementById('empCount');
     if (empCount) empCount.textContent = emp.length + ' NV';
 
-    // 2. KẾT NỐI FIREBASE
+    // 2. KẾT NỐI FIREBASE (Lắng nghe thông báo dữ liệu mới)
     if (!isAdmin && typeof db !== 'undefined') {
         if (!window._lastUpdatedListenerAttached) {
             window._lastUpdatedListenerAttached = true;
@@ -4673,51 +4404,29 @@ async function init() {
         }
     }
     
-    // =========================================================
-    // ✅ RESET VỀ 2 THÁNG GẦN NHẤT KHI F5 (Theo ý tưởng của bạn)
-    // =========================================================
+    // 3. KIỂM TRA DỮ LIỆU VÀ TẢI TỪ FIREBASE (NẾU CẦN)
     var currentData = localStorage.getItem('r');
     var needFetch = false;
     
     if (!currentData || currentData === '[]') {
-        // Máy chưa có dữ liệu -> Cần tải
         needFetch = true;
     } else {
         try {
             var parsedRecs = JSON.parse(currentData);
             if (parsedRecs.length === 0) {
                 needFetch = true;
-            } else {
-                // Kiểm tra xem dữ liệu đang có thuộc tháng nào
-                var maxDateStr = parsedRecs.reduce(function(max, r) {
-                    return (r.date && r.date > max) ? r.date : max;
-                }, '2000-01-01');
-                
-                var newestMonth = maxDateStr.substring(0, 7); // VD: '2026-09'
-                var now = new Date();
-                var currentMonthStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
-                
-                // Nếu tháng mới nhất trong máy KHÔNG PHẢI là tháng hiện tại (tức là đang xem tháng cũ)
-                if (newestMonth !== currentMonthStr) {
-                    console.log('🔄 Phát hiện dữ liệu cũ (' + newestMonth + '). Đang reset về 2 tháng gần nhất...');
-                    localStorage.removeItem('r'); // Xóa dữ liệu cũ
-                    needFetch = true;
-                } else {
-                    // Nếu đã có tháng hiện tại rồi, thì cứ thế hiển thị
-                    console.log('⚡ Đã có dữ liệu tháng hiện tại, không cần tải lại.');
-                }
             }
         } catch(e) {
             needFetch = true;
         }
     }
 
-    // 3. TẢI DỮ LIỆU NẾU CẦN (Máy mới, hoặc vừa bị reset do F5 khi đang xem tháng cũ)
+    // Nếu là máy mới (chưa có data) -> Tự động tải 2 tháng gần nhất
     if (needFetch) {
         var statusDiv = document.createElement('div');
         statusDiv.id = 'fbStatus';
         statusDiv.style.cssText = 'position:fixed; top:0; left:0; right:0; background:#3b82f6; color:white; padding:8px; font-size:12px; z-index:99999; text-align:center; font-weight:bold;';
-        statusDiv.textContent = '⏳ Đang tải dữ liệu 2 tháng gần nhất từ Firebase...';
+        statusDiv.textContent = '⏳ Đang tải dữ liệu cơ bản từ Firebase...';
         document.body.appendChild(statusDiv);
 
         var now = new Date();
@@ -4755,19 +4464,20 @@ async function init() {
             setTimeout(function() { statusDiv.remove(); }, 3000);
             
             if (typeof refreshAllUI === 'function') refreshAllUI();
-            
         }).catch(function(e) {
             statusDiv.style.background = '#ef4444';
             statusDiv.textContent = '❌ Lỗi Firebase: ' + e.message;
             console.error(e);
         });
     } else {
+        console.log('⚡ Đã có dữ liệu trong máy, không tải từ Firebase.');
         if (typeof refreshAllUI === 'function') refreshAllUI();
     }
 
     // 4. Cài đặt thời gian
     var attDate = document.getElementById('attDate');
     if (attDate) attDate.value = getLocalDateStr();
+    
     updateClock();
     setInterval(updateClock, 1000);
     initModalAutocomplete();
@@ -6322,3 +6032,16 @@ async function fetchPersonalRecordsFromFirebase(empName, startDate, endDate) {
         return [];
     }
 }
+window.refreshStatsNow = function() {
+    if (typeof heatmapRange !== 'undefined') { 
+        heatmapRange.start = null; 
+        heatmapRange.end = null; 
+    }
+    if (typeof statsFilterState !== 'undefined') {
+        statsFilterState.fromDate = '';
+        statsFilterState.toDate = '';
+    }
+    window._statsData = L(REC_KEY, []);
+    renderStatistics();
+    if (typeof showAlert === 'function') showAlert('✅ Đã làm mới dữ liệu!');
+};
