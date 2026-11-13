@@ -3810,7 +3810,35 @@ async function loadPersonalRecords() {
         });
     }
 
+    
+    // THEO THÁNG: Sử dụng dữ liệu IndexedDB đã tải
+    // Không thay thế bằng Firebase vì Firebase có thể thiếu
+    // các bản ghi đầu tháng.
+
+    if (dateType === 'month' && monthVal) {
+        personalRecs = localRecs.filter(function(r) {
+            return r &&
+                   typeof r.date === 'string' &&
+                   r.date.startsWith(monthVal);
+        });
+
+        console.log(
+            '[Cá nhân - IndexedDB]',
+            'Tháng:', monthVal,
+            '| Tổng bản ghi nhân viên:', personalRecs.length,
+            '| Ngày đầu:',
+            personalRecs.length
+                ? personalRecs.map(function(r) {
+                    return r.date;
+                  }).sort()[0]
+                : 'Không có'
+        );
+    }
+
     // 5. Xử lý tải dữ liệu dài hạn (Năm, Quý, Tất cả)
+
+
+     // 5. Xử lý tải dữ liệu dài hạn (Năm, Quý, Tất cả)
     var isLongTerm = (dateType === 'all' || dateType === 'year' || dateType === 'quarter' || dateType === 'first-half' || dateType === 'second-half');
     
     if (isLongTerm && typeof db !== 'undefined') {
