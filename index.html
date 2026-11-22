@@ -146,6 +146,9 @@
       <button onclick="saveToFirebase()" style="background:#f59e0b; color:white; border:none; padding:10px 16px; border-radius:8px;">
           ☁️ Lưu lên Firebase
       </button>
+      <button onclick="promptRepairFirebaseDifferences()" style="background:#0d9488;color:white;border:none;padding:10px 16px;border-radius:8px;cursor:pointer;">
+          🛡️ Khôi phục bản sửa chưa đồng bộ
+      </button>
       <button onclick="loadFromFirebase()" style="background:#3b82f6; color:white; border:none; padding:10px 16px; border-radius:8px;">
           📥 Tải từ Firebase
       </button>
@@ -324,6 +327,6 @@ if ('serviceWorker' in navigator) {
   <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
 
   <!-- Code chính của bạn (Đổi version lên 591 để xóa cache cũ) -->
-  <script src="app.js?v=pair-v2"></script>
+  <script src="app.js?v=sync-repair-v1"></script>
 </body>
 </html>
