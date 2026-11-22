@@ -28,6 +28,16 @@ var USE_GITHUB_SYNC = true;
 var ADMIN_PASSWORD = 'Admin@123';
 var isAdmin = false;
 
+// Ngày theo múi giờ địa phương (YYYY-MM-DD).
+// Đặt trong app.js để chức năng chọn nhanh không phụ thuộc utils.js.
+function getLocalDateStr(date) {
+  var d = date instanceof Date ? date : new Date();
+  if (Number.isNaN(d.getTime())) throw new Error('Ngày không hợp lệ');
+  return String(d.getFullYear()) + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0');
+}
+
 // ==================== STORAGE KEYS ====================
 var EMP_KEY = 'e';
 var SHIFT_KEY = 's';
@@ -2151,48 +2161,73 @@ window.rstForm = function() {
 var _bulkMissingDate = '';
 
 window.selectAllMissingForDate = async function(dateStr) {
-  if (!isAdmin) {
-    await showAlert('Chức năng chọn hàng loạt chỉ dành cho Admin.');
-    return;
-  }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return;
-  var monthNow = getLocalDateStr().slice(0, 7);
-  if (dateStr.slice(0, 7) !== monthNow || dateStr > getLocalDateStr()) {
-    await showAlert('Chỉ được chọn ngày thiếu công trong tháng hiện tại.');
-    return;
-  }
+  // Chọn ngay bằng một lần chạm. KHÔNG tạo bản ghi cho tới khi người dùng nhấn Lưu.
+  try {
+    if (!isAdmin) {
+      await showAlert('Chức năng chọn hàng loạt chỉ dành cho Admin.');
+      return false;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      await showAlert('Ngày được chọn không hợp lệ.');
+      return false;
+    }
+    var today = getLocalDateStr();
+    if (dateStr.slice(0, 7) !== today.slice(0, 7) || dateStr > today) {
+      await showAlert('Chỉ được chọn ngày thiếu công trong tháng hiện tại.');
+      return false;
+    }
 
-  var missing = getMissingEmployees();
-  var names = missing.filter(function(m) {
-    return m.missingDays.indexOf(dateStr) !== -1;
-  }).map(function(m) { return m.name; });
-  names = Array.from(new Set(names));
-  if (!names.length) {
-    await showAlert('Ngày ' + formatDate(dateStr) + ' không còn nhân viên thiếu chấm công trên máy.');
-    renderMissingEmployees();
-    return;
-  }
+    // Tính lại ở thời điểm nhấn để không chọn dựa trên bộ đếm cũ trên giao diện.
+    var missing = getMissingEmployees();
+    var names = Array.from(new Set(missing.filter(function(item) {
+      return item.missingDays.indexOf(dateStr) !== -1;
+    }).map(function(item) { return item.name; })));
+    if (!names.length) {
+      renderMissingEmployees();
+      await showAlert('Ngày ' + formatDate(dateStr) + ' không còn nhân viên thiếu chấm công trên máy.');
+      return false;
+    }
 
-  var msg = 'Chọn ' + names.length + ' nhân viên chưa chấm công ngày ' + formatDate(dateStr) +
-    '?\nDanh sách đang chọn trong form sẽ được thay thế.\n' +
-    'Bạn vẫn cần tự chọn ca (ví dụ Nghỉ) và nhấn Lưu; chưa có bản ghi nào được tạo ở bước này.';
-  if (!await showConfirm(msg, 'Chọn nhân viên theo ngày')) return;
+    var dateInput = document.getElementById('attDate');
+    var selectedBox = document.getElementById('selectedEmployees');
+    if (!dateInput || !selectedBox) {
+      throw new Error('Không tìm thấy ô ngày hoặc vùng danh sách nhân viên đã chọn.');
+    }
 
-  selectedEmployees = names;
-  _bulkMissingDate = dateStr;
-  var dateInput = document.getElementById('attDate');
-  if (dateInput) dateInput.value = dateStr;
-  renderSelectedEmployees();
-  var input = document.getElementById('employeeInput');
-  if (input) input.value = '';
-  var box = document.getElementById('bulkMissingSelectionNotice');
-  if (box) {
-    box.textContent = '✅ Đã chọn ' + names.length + ' nhân viên chưa chấm công ngày ' +
-      formatDate(dateStr) + '. Hãy chọn ca Nghỉ (nếu tất cả đều nghỉ) rồi nhấn Lưu.';
-    box.hidden = false;
+    // Thay thế danh sách hiện tại (không cộng dồn giữa các ngày).
+    selectedEmployees = names;
+    _bulkMissingDate = dateStr;
+    dateInput.value = dateStr;
+    renderSelectedEmployees();
+    var input = document.getElementById('employeeInput');
+    if (input) input.value = '';
+    var dropdown = document.getElementById('empAutocomplete');
+    if (dropdown) dropdown.style.display = 'none';
+
+    var notice = document.getElementById('bulkMissingSelectionNotice');
+    if (notice) {
+      notice.textContent = '✅ Đã đưa ' + names.length + ' nhân viên thiếu ngày ' +
+        formatDate(dateStr) + ' lên danh sách đã chọn. Chọn ca, công việc, ăn cơm rồi nhấn Lưu.';
+      notice.hidden = false;
+    }
+    // Cập nhật trạng thái nút mà không dựng lại toàn bộ danh sách đang cuộn.
+    document.querySelectorAll('.missing-bulk-day-btn').forEach(function(btn) {
+      var active = btn.dataset.date === dateStr;
+      btn.classList.toggle('is-selected', active);
+      btn.setAttribute('aria-pressed', String(active));
+    });
+    // Cuộn tới tên nhân viên để người dùng thấy thao tác đã thành công.
+    var target = document.getElementById('selectedCount') || selectedBox;
+    if (typeof target.scrollIntoView === 'function') {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    console.info('✅ Chọn nhanh:', dateStr, names.length, 'nhân viên');
+    return true;
+  } catch (err) {
+    console.error('❌ Chọn nhanh nhân viên theo ngày:', err);
+    await showAlert('Không thể chọn nhân viên theo ngày: ' + (err.message || err));
+    return false;
   }
-  var form = document.getElementById('attendanceForm');
-  if (form) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
 
 // ==================== MISSING EMPLOYEES ====================
@@ -2287,17 +2322,36 @@ function renderMissingEmployees() {
       bulkBar.className = 'missing-bulk-bar';
       var heading = document.createElement('div');
       heading.className = 'missing-bulk-heading';
-      heading.textContent = '📅 Chọn nhanh toàn bộ nhân viên còn thiếu theo ngày:';
+      heading.textContent = '📅 Chọn nhanh theo ngày';
       bulkBar.appendChild(heading);
       var buttons = document.createElement('div');
       buttons.className = 'missing-bulk-days';
       Object.keys(dates).sort().reverse().forEach(function(dateStr) {
         var button = document.createElement('button');
         button.type = 'button'; // Nằm trong form: tuyệt đối không submit khi chỉ chọn ngày
-        button.className = 'missing-bulk-day-btn';
-        button.textContent = formatDate(dateStr) + ' · ' + dates[dateStr] + ' NV';
+        button.className = 'missing-bulk-day-btn' + (_bulkMissingDate === dateStr ? ' is-selected' : '');
+        button.dataset.date = dateStr;
+        button.setAttribute('aria-pressed', String(_bulkMissingDate === dateStr));
+        button.setAttribute('aria-label', 'Chọn ' + dates[dateStr] + ' nhân viên chưa chấm công ngày ' + formatDate(dateStr));
         button.title = 'Chọn ' + dates[dateStr] + ' nhân viên còn thiếu ngày ' + formatDate(dateStr);
-        button.onclick = function() { selectAllMissingForDate(dateStr); };
+        var dateText = document.createElement('span');
+        dateText.className = 'missing-bulk-date';
+        dateText.textContent = formatDate(dateStr);
+        var countText = document.createElement('span');
+        countText.className = 'missing-bulk-count';
+        countText.textContent = dates[dateStr] + ' NV';
+        var arrow = document.createElement('span');
+        arrow.className = 'missing-bulk-arrow';
+        arrow.textContent = '›';
+        arrow.setAttribute('aria-hidden', 'true');
+        button.appendChild(dateText);
+        button.appendChild(countText);
+        button.appendChild(arrow);
+        button.onclick = function(event) {
+          event.preventDefault();
+          event.stopPropagation();
+          window.selectAllMissingForDate(dateStr);
+        };
         buttons.appendChild(button);
       });
       bulkBar.appendChild(buttons);
@@ -6343,3 +6397,5 @@ window.refreshStatsNow = function() {
     renderStatistics();
     if (typeof showAlert === 'function') showAlert('✅ Đã làm mới dữ liệu!');
 };
+// Phiên bản chẩn đoán tài nguyên, không ảnh hưởng tới dữ liệu chấm công.
+window.CHAMCONG_BULK_UI_VERSION = '20261122-bulk-click-v4-date-fix';
