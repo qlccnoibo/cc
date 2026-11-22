@@ -1226,6 +1226,20 @@ function rShifts() {
   selShift(0);
 }
 
+// Ca Nghỉ không có công đoạn: xóa tích và khóa checkbox trong form chấm công.
+function syncRestTasksInAttendance(shiftName) {
+  var isRest = _isRestOverviewShift(shiftName);
+  document.querySelectorAll('#groupsCompact .task-checkbox').forEach(function(cb) {
+    if (isRest) cb.checked = false;
+    cb.disabled = isRest;
+    var row = cb.closest('.group-compact-task');
+    if (row) {
+      if (isRest) row.classList.remove('checked');
+      row.style.opacity = isRest ? '0.55' : '';
+    }
+  });
+}
+
 function selShift(index) {
   document.querySelectorAll('.shift-btn').forEach(function(btn) {
     btn.classList.remove('active');
@@ -1233,6 +1247,7 @@ function selShift(index) {
   var btns = document.querySelectorAll('.shift-btn');
   if (btns[index]) btns[index].classList.add('active');
   var shiftName = shifts[index] ? shifts[index].name : '';
+  syncRestTasksInAttendance(shiftName);
   var eatValue = 'Có';
   if (shiftName === 'Ca 3' || shiftName === '1/2 Ca' || shiftName === 'Nghỉ') {
     eatValue = 'Không';
@@ -1325,6 +1340,10 @@ function rGCompact() {
         checkbox.setAttribute('data-task', it.id);
         checkbox.setAttribute('data-group', g.id);
         checkbox.onchange = function() {
+          if (_isRestOverviewShift(getShift())) {
+            this.checked = false;
+            return;
+          }
           tglRow(it.id, this.checked);
           if (this.checked) {
             taskDiv.classList.add('checked');
@@ -1349,6 +1368,7 @@ function rGCompact() {
     frame.appendChild(body);
     w.appendChild(frame);
   });
+  syncRestTasksInAttendance(getShift());
 }
 
 window.tglRow = function(id, chk) {
@@ -1882,6 +1902,7 @@ window.subAtt = async function(e, keepTimestamp) {
     if (t) ts.push({ group: g.title, task: t.name });
   });
   
+  if (_isRestOverviewShift(sh)) ts = [];
   var attDateCheck = dt.split('T')[0];
   var rec = await getRecords(); // Lấy từ IndexedDB
   var now = Date.now();
@@ -2587,6 +2608,20 @@ function renderCharts(records) {
   document.getElementById('pieChart').innerHTML = html;
 }
 
+// Nhóm hiển thị: ca Nghỉ gộp các nhân viên cùng ngày, ca, ăn và ghi chú,
+// bất kể công đoạn cũ. Dữ liệu gốc của từng nhân viên không bị thay đổi.
+function _isRestOverviewShift(shift) {
+  return String(shift || '').split('(')[0].trim().toLowerCase() === 'nghỉ';
+}
+function _overviewGroupKey(record) {
+  var tasks = _isRestOverviewShift(record.shift) ? [] : (record.tasks || []);
+  return record.date + '|' + (record.shift || '') + '|' + (record.eat || '') + '|' +
+    (record.note || '') + '|' + JSON.stringify(tasks);
+}
+function _overviewMatchesKey(record, key) {
+  return _overviewGroupKey(record) === key;
+}
+
 // ==================== STATS TABLE FUNCTIONS ====================
 function renderStatsTable(records) {
   // 👉 Lọc nhân viên ẩn
@@ -2610,7 +2645,7 @@ function renderStatsTable(records) {
   _tableGroupMap = {};
   var grouped = {};
   records.forEach(function(record) {
-    var key = record.date + '|' + (record.shift || '') + '|' + (record.eat || '') + '|' + (record.note || '') + '|' + JSON.stringify(record.tasks || []);
+    var key = _overviewGroupKey(record);
     if (!grouped[key]) {
       grouped[key] = {
         date: record.date,
@@ -2618,9 +2653,18 @@ function renderStatsTable(records) {
         eat: record.eat,
         note: record.note,
         tasks: record.tasks || [],
+        restTaskLabels: [],
         employees: [],
         firstTimestamp: record.sortOrder || record.timestamp || '9999'
       };
+    }
+    if (_isRestOverviewShift(record.shift)) {
+      (record.tasks || []).forEach(function(t) {
+        var label = (t && (t.task || t.name)) || '';
+        if (label && grouped[key].restTaskLabels.indexOf(label) === -1) {
+          grouped[key].restTaskLabels.push(label);
+        }
+      });
     }
     var cleanName = cleanEmployeeName(record.employee);
     if (grouped[key].employees.indexOf(cleanName) === -1) {
@@ -2672,7 +2716,9 @@ function renderCurrentOverviewPage(container) {
     var dataIndex = 'gidx_' + (globalIdx + 1);
     _tableGroupMap[dataIndex] = item.key;
     var shiftName = group.shift ? group.shift.split('(')[0].trim() : '-';
-    var tasks = group.tasks.length ? group.tasks.map(function(t) { return t.task; }).join(', ') : '-';
+    var tasks = _isRestOverviewShift(group.shift)
+      ? (group.restTaskLabels.length ? group.restTaskLabels.join(', ') : '-')
+      : (group.tasks.length ? group.tasks.map(function(t) { return t.task; }).join(', ') : '-');
     var noteText = group.note || '-';
     var noteSafe = escHtml(noteText);
     var eatBadge = group.eat === 'Có' ? 'yes' : 'no';
@@ -3369,14 +3415,22 @@ window.openEditModal = function(groupKey) {
   var groupTasks = [];
   try { groupTasks = JSON.parse(parts[4]); } catch (e) { groupTasks = []; }
   var matchingRecords = allRecords.filter(function(r) {
-    return r.date === groupDate &&
-      r.shift === groupShift &&
-      r.eat === groupEat &&
-      (r.note || '') === groupNote &&
-      JSON.stringify(r.tasks || []) === JSON.stringify(groupTasks);
+    return _overviewMatchesKey(r, groupKey);
   });
   if (matchingRecords.length === 0) {
     showAlert('Không tìm thấy bản ghi!');
+    return;
+  }
+  // Một nhân viên có nhiều bản ghi khác nhau trong cùng nhóm Nghỉ: chặn sửa cả nhóm
+  // để không vô tình xóa bớt một bản ghi của nhân viên đó.
+  var seenEmployees = new Set();
+  var duplicateEmployees = matchingRecords.filter(function(r) {
+    if (seenEmployees.has(r.employee)) return true;
+    seenEmployees.add(r.employee);
+    return false;
+  });
+  if (duplicateEmployees.length) {
+    showAlert('Nhóm Nghỉ này có nhân viên xuất hiện trong nhiều bản ghi. Vui lòng kiểm tra các bản ghi trùng trước khi sửa cả nhóm để tránh mất dữ liệu.', 'Cần kiểm tra bản ghi');
     return;
   }
   _editModalData.key = groupKey;
@@ -3390,7 +3444,8 @@ window.openEditModal = function(groupKey) {
   _editModalData.originalNote = groupNote;
   _editModalData.originalTasks = JSON.parse(JSON.stringify(groupTasks));
   _editModalData.originalIds = matchingRecords.map(function(r) { return r.id; });
-  _editModalData.tasks = groupTasks.map(function(t) { return t.task; });
+  _editModalData.originalRecordByEmployee = new Map(matchingRecords.map(function(r) { return [r.employee, r]; }));
+  _editModalData.tasks = (matchingRecords[0].tasks || []).map(function(t) { return t.task; });
   _editModalData.eat = groupEat;
   _editModalData.note = groupNote;
   var shiftName = groupShift ? groupShift.split('(')[0].trim() : '';
@@ -3439,6 +3494,7 @@ function renderModalContent() {
       '<div class="shift-time">' + (s.time || '') + '</div>';
     btn.onclick = function() {
       _editModalData.shiftIndex = i;
+      if (_isRestOverviewShift(s.name)) _editModalData.tasks = [];
       renderModalContent();
     };
     shiftGrid.appendChild(btn);
@@ -3447,6 +3503,8 @@ function renderModalContent() {
   if (eatRadio) eatRadio.checked = true;
   var groupsContainer = document.getElementById('modalGroupsCompact');
   groupsContainer.innerHTML = '';
+  var modalIsRest = _isRestOverviewShift(shifts[_editModalData.shiftIndex]?.name);
+  if (modalIsRest) _editModalData.tasks = [];
   groups.forEach(function(g, gIdx) {
     if (!g.items || g.items.length === 0) return;
     var frame = document.createElement('div');
@@ -3471,8 +3529,11 @@ function renderModalContent() {
       if (isChecked) taskDiv.classList.add('checked');
       var cb = document.createElement('input');
       cb.type = 'checkbox';
-      cb.checked = isChecked;
+      cb.checked = !modalIsRest && isChecked;
+      cb.disabled = modalIsRest;
+      if (modalIsRest) taskDiv.style.opacity = '0.55';
       cb.onchange = function() {
+        if (modalIsRest) { this.checked = false; return; }
         if (this.checked) {
           if (!_editModalData.tasks.includes(it.name)) {
             _editModalData.tasks.push(it.name);
@@ -3525,14 +3586,9 @@ window.saveGroupFromModal = async function() {
     return;
   }
   var allRecords = L(REC_KEY, []);
-  allRecords = allRecords.filter(function(r) {
-    return !(_editModalData.originalEmployees.includes(r.employee) &&
-      r.date === _editModalData.originalDate &&
-      r.shift === _editModalData.originalShift &&
-      r.eat === _editModalData.originalEat &&
-      (r.note || '') === _editModalData.originalNote &&
-      JSON.stringify(r.tasks || []) === JSON.stringify(_editModalData.originalTasks));
-  });
+  // Chỉ tác động các ID đã mở trong modal, kể cả nhóm Nghỉ có nhiều công đoạn cũ.
+  var editedIds = new Set(_editModalData.originalIds || []);
+  allRecords = allRecords.filter(function(r) { return !editedIds.has(r.id); });
   var shift = shifts[_editModalData.shiftIndex];
   var shiftStr = shift ? shift.name + ' (' + shift.time + ')' : '';
   var note = document.getElementById('modalNote').value.trim();
@@ -3550,6 +3606,7 @@ window.saveGroupFromModal = async function() {
   var now = new Date().toISOString();
   var originalTs = _editModalData.originalTimestamp || now;
   var shiftName = shift ? shift.name : '';
+  if (_isRestOverviewShift(shiftName)) taskObjects = [];
   if (taskObjects.length === 0 && shiftName !== 'Nghỉ') {
     await showAlert('⚠️ Vui lòng chọn ít nhất 1 công đoạn làm việc!', 'Thiếu thông tin');
     return;
@@ -3575,12 +3632,17 @@ window.saveGroupFromModal = async function() {
     return;
   }
   _editModalData.employees.forEach(function(empName, i) {
+    var originalRecord = _editModalData.originalRecordByEmployee &&
+      _editModalData.originalRecordByEmployee.get(empName);
     allRecords.push({
-      id: (_editModalData.originalIds && _editModalData.originalIds[i]) ? _editModalData.originalIds[i] : ('rec_' + Date.now() + '_' + i),
+      id: (_editModalData.originalRecordByEmployee && _editModalData.originalRecordByEmployee.get(empName))
+        ? _editModalData.originalRecordByEmployee.get(empName).id
+        : ('rec_' + Date.now() + '_' + i),
       employee: empName,
       date: (document.getElementById('modalDate')?.value || _editModalData.originalDate).split('T')[0],
       shift: shiftStr,
       eat: eat,
+      // Ca Nghỉ luôn không có công đoạn; quy tắc gộp nhóm giữ nguyên.
       tasks: taskObjects,
       note: note,
       timestamp: originalTs,
@@ -3588,7 +3650,7 @@ window.saveGroupFromModal = async function() {
       sortOrder: _editModalData.originalSortOrder || Date.now()
     });
   });
-  S(REC_KEY, allRecords);
+  await S(REC_KEY, allRecords);
   log('Sửa nhóm ' + _editModalData.employees.length + ' NV qua modal');
   closeEditModal();
   window._statsData = allRecords;
@@ -3605,15 +3667,10 @@ window.deleteGroupFromModal = async function() {
   );
   if (!confirmed) return;
   var allRecords = L(REC_KEY, []);
-  allRecords = allRecords.filter(function(r) {
-    return !(_editModalData.originalEmployees.includes(r.employee) &&
-      r.date === _editModalData.originalDate &&
-      r.shift === _editModalData.originalShift &&
-      r.eat === _editModalData.originalEat &&
-      (r.note || '') === _editModalData.originalNote &&
-      JSON.stringify(r.tasks || []) === JSON.stringify(_editModalData.originalTasks));
-  });
-  S(REC_KEY, allRecords);
+  // Chỉ tác động các ID đã mở trong modal, kể cả nhóm Nghỉ có nhiều công đoạn cũ.
+  var editedIds = new Set(_editModalData.originalIds || []);
+  allRecords = allRecords.filter(function(r) { return !editedIds.has(r.id); });
+  await S(REC_KEY, allRecords);
   log('Xóa nhóm ' + _editModalData.originalEmployees.length + ' NV qua modal');
   closeEditModal();
   window._statsData = allRecords;
@@ -3627,7 +3684,7 @@ window.closeEditModal = function() {
     key: null, employees: [], shiftIndex: 0, tasks: [],
     eat: 'Có', note: '', originalDate: '', originalShift: '',
     originalEat: '', originalNote: '', originalTasks: [], originalEmployees: [],
-    originalIds: [], originalTimestamp: null,
+    originalIds: [], originalTimestamp: null, originalRecordByEmployee: null,
     originalSortOrder: null
   };
 };
@@ -4281,16 +4338,13 @@ window.moveGroupUp = function(gidx) {
   var group2Tasks = [];
   try { group2Tasks = JSON.parse(parts2[4]); } catch (e) {}
   var group1Records = allRecords.filter(function(r) {
-    return r.date === group1Date && r.shift === group1Shift && r.eat === group1Eat &&
-      (r.note || '') === group1Note && JSON.stringify(r.tasks || []) === JSON.stringify(group1Tasks);
+    return _overviewMatchesKey(r, key);
   });
   allRecords = allRecords.filter(function(r) {
-    return !(r.date === group1Date && r.shift === group1Shift && r.eat === group1Eat &&
-      (r.note || '') === group1Note && JSON.stringify(r.tasks || []) === JSON.stringify(group1Tasks));
+    return !(_overviewMatchesKey(r, key));
   });
   var insertIdx = allRecords.findIndex(function(r) {
-    return r.date === group2Date && r.shift === group2Shift && r.eat === group2Eat &&
-      (r.note || '') === group2Note && JSON.stringify(r.tasks || []) === JSON.stringify(group2Tasks);
+    return _overviewMatchesKey(r, prevKey);
   });
   allRecords.splice.apply(allRecords, [insertIdx, 0].concat(group1Records));
   S(REC_KEY, allRecords);
@@ -4338,16 +4392,13 @@ window.moveGroupDown = function(gidx) {
   var group2Tasks = [];
   try { group2Tasks = JSON.parse(parts2[4]); } catch (e) {}
   var group1Records = allRecords.filter(function(r) {
-    return r.date === group1Date && r.shift === group1Shift && r.eat === group1Eat &&
-      (r.note || '') === group1Note && JSON.stringify(r.tasks || []) === JSON.stringify(group1Tasks);
+    return _overviewMatchesKey(r, key);
   });
   allRecords = allRecords.filter(function(r) {
-    return !(r.date === group1Date && r.shift === group1Shift && r.eat === group1Eat &&
-      (r.note || '') === group1Note && JSON.stringify(r.tasks || []) === JSON.stringify(group1Tasks));
+    return !(_overviewMatchesKey(r, key));
   });
   var insertIdx = allRecords.findIndex(function(r) {
-    return r.date === group2Date && r.shift === group2Shift && r.eat === group2Eat &&
-      (r.note || '') === group2Note && JSON.stringify(r.tasks || []) === JSON.stringify(group2Tasks);
+    return _overviewMatchesKey(r, nextKey);
   });
   if (insertIdx === -1) return;
   allRecords.splice.apply(allRecords, [insertIdx + group1Records.length, 0].concat(group1Records));
@@ -4620,18 +4671,17 @@ window.deleteRecordGroup = async function(key) {
   var groupTasks = [];
   try { groupTasks = JSON.parse(parts[4]); } catch (e) { groupTasks = []; }
   var matchingRecords = allRecords.filter(function(r) {
-    return r.date === groupDate && r.shift === groupShift && r.eat === groupEat && (r.note || '') === groupNote && JSON.stringify(r.tasks || []) === JSON.stringify(groupTasks);
+    return _overviewMatchesKey(r, key);
   });
   if (matchingRecords.length === 0) { showAlert('Không tìm thấy bản ghi phù hợp!'); return; }
   var employees = matchingRecords.map(function(r) { return r.employee; });
   var empList = employees.join(', ');
   var confirmed = await showConfirm('Bạn muốn xóa tất cả bản ghi của nhóm này?\n\n📅 Ngày: ' + formatDate(groupDate) + '\n👥 Nhân viên: ' + empList + '\n🕐 Ca: ' + (groupShift ? groupShift.split('(')[0].trim() : '-') + '\n🍚 Ăn: ' + groupEat + '\n\n⚠️ Hành động này không hoàn tác được!', 'Xác nhận xóa');
   if (!confirmed) return;
-  allRecords = allRecords.filter(function(r) {
-    return !(employees.includes(r.employee) && r.date === groupDate && r.shift === groupShift && r.eat === groupEat && (r.note || '') === groupNote && JSON.stringify(r.tasks || []) === JSON.stringify(groupTasks));
-  });
+  var deleteIds = new Set(matchingRecords.map(function(r) { return r.id; }));
+  allRecords = allRecords.filter(function(r) { return !deleteIds.has(r.id); });
   localStorage.setItem('last_sync_time', '0');
-  S(REC_KEY, allRecords);
+  await S(REC_KEY, allRecords);
   log('Xóa nhóm ' + employees.length + ' NV: ' + empList + ' ngày ' + formatDate(groupDate));
   window._statsData = allRecords;
   applyStatsFilters();
@@ -4833,20 +4883,17 @@ window.onRowDrop = function(e) {
     
     // Lấy records của nhóm FROM
     var fromRecords = allRecords.filter(function(r) {
-        return r.date === fromDate && r.shift === fromShift && r.eat === fromEat && 
-               (r.note || '') === fromNote && JSON.stringify(r.tasks || []) === JSON.stringify(fromTasks);
+        return _overviewMatchesKey(r, fromKey);
     });
     
     // Xóa nhóm FROM khỏi mảng
     allRecords = allRecords.filter(function(r) {
-        return !(r.date === fromDate && r.shift === fromShift && r.eat === fromEat && 
-               (r.note || '') === fromNote && JSON.stringify(r.tasks || []) === JSON.stringify(fromTasks));
+        return !(_overviewMatchesKey(r, fromKey));
     });
     
     // Tìm vị trí nhóm TO trong mảng mới
     var insertIdx = allRecords.findIndex(function(r) {
-        return r.date === toDate && r.shift === toShift && r.eat === toEat && 
-               (r.note || '') === toNote && JSON.stringify(r.tasks || []) === JSON.stringify(toTasks);
+        return _overviewMatchesKey(r, toKey);
     });
     
     if (insertIdx === -1) return;
@@ -4926,6 +4973,7 @@ window.saveAttendanceTemplate = function() {
         }
     });
     
+    if (_isRestOverviewShift(shifts[activeShiftIdx]?.name)) selectedTasks = [];
     var template = {
         date: attDate,
         employees: selectedEmployees.slice(),
@@ -5009,7 +5057,7 @@ window.loadAttendanceTemplate = async function() {
         if (cb) cb.checked = false;
     });
     
-    if (template.tasks && template.tasks.length > 0) {
+    if (!_isRestOverviewShift(shifts[template.shiftIndex]?.name) && template.tasks && template.tasks.length > 0) {
         template.tasks.forEach(function(t) {
             groups.forEach(function(g) {
                 g.items.forEach(function(it) {
@@ -5071,6 +5119,7 @@ window.copyGroupToAnotherDate = async function() {
         });
     });
     
+    if (_isRestOverviewShift(shiftStr)) taskObjects = [];
     var allRecords = L(REC_KEY, []);
     var now = new Date().toISOString();
     
