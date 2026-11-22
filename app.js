@@ -1433,6 +1433,114 @@ function rShiftList() {
   });
 }
 
+// ===== GROUP SUBCATEGORIES V1 — metadata only, attendance task format unchanged =====
+function ensureTaskSubgroups(g) {
+  if (!g || !Array.isArray(g.items)) return;
+  if (!Array.isArray(g.subgroups)) g.subgroups = [];
+  // Legacy TH & Kèm cặp: group by existing task names, keeping every id and name.
+  if (!g.subgroups.length && !g.subgroupsConfigured && /TH\s*&\s*K[eè]m\s*c[aặ]p/i.test(g.title || '')) {
+    var defs = [
+      { id: 'practice', title: 'Học thực hành' },
+      { id: 'ong', title: 'Kèm cặp Ống' },
+      { id: 'la-cau', title: 'Kèm cặp Lá & Cầu' }
+    ];
+    g.subgroups = defs.map(function(x) { return { id: x.id, title: x.title }; });
+    g.subgroupsConfigured = true;
+    g.items.forEach(function(it) {
+      if (it.subgroupId) return;
+      var name = String(it.name || '');
+      it.subgroupId = /Học thực hành/i.test(name) ? 'practice' :
+        /\(Ống\)/i.test(name) ? 'ong' : 'la-cau';
+    });
+  }
+}
+function subgroupBuckets(g) {
+  ensureTaskSubgroups(g);
+  var result = (g.subgroups || []).map(function(sub) {
+    return { id: sub.id, title: sub.title, items: g.items.filter(function(it) {return it.subgroupId === sub.id;}) };
+  });
+  var assigned = new Set(result.map(function(x) {return x.id;}));
+  var rest = g.items.filter(function(it) {return !it.subgroupId || !assigned.has(it.subgroupId);});
+  if (rest.length) result.push({ id: '', title: 'Chưa phân nhóm', items: rest });
+  return result;
+}
+// Keep open/closed status for each subgroup across renders, but not across devices.
+var _taskSubOpen = {};
+function buildSubgroupTaskList(g, makeRow) {
+  ensureTaskSubgroups(g);
+  var container = document.createElement('div');
+  container.className = 'group-compact-tasks';
+  if (!g.subgroups || !g.subgroups.length) {
+    g.items.forEach(function(it) { container.appendChild(makeRow(it)); });
+    return container;
+  }
+  subgroupBuckets(g).forEach(function(b) {
+    var wrap = document.createElement('div'); wrap.className = 'task-subgroup';
+    var key = String(g.id) + ':' + String(b.id);
+    var opened = _taskSubOpen[key] === true;
+    wrap.classList.toggle('open', opened);
+    var header = document.createElement('button'); header.type = 'button';
+    header.className = 'task-subgroup-header';
+    var name = document.createElement('span'); name.textContent = b.title;
+    var count = document.createElement('span'); count.className = 'task-subgroup-count';
+    count.textContent = b.items.length + ' công việc';
+    var selectedCount = document.createElement('span'); selectedCount.className = 'task-subgroup-selected';
+    var arrow = document.createElement('span'); arrow.className = 'task-subgroup-chevron'; arrow.textContent = '⌄';
+    header.append(name, count, selectedCount, arrow);
+    var items = document.createElement('div'); items.className = 'task-subgroup-items';
+    b.items.forEach(function(it) {items.appendChild(makeRow(it));});
+    function refreshCount() {
+      var n = items.querySelectorAll('.task-checkbox:checked').length;
+      // Modal checkboxes do not use task-checkbox in old code, so count all checkbox inputs.
+      if (!items.querySelector('.task-checkbox')) n = items.querySelectorAll('input[type="checkbox"]:checked').length;
+      selectedCount.textContent = n ? n + ' đã chọn' : '';
+      selectedCount.style.display = n ? '' : 'none';
+    }
+    items.addEventListener('change', refreshCount);
+    header.onclick = function(ev) {
+      ev.stopPropagation();
+      _taskSubOpen[key] = !wrap.classList.contains('open');
+      wrap.classList.toggle('open');
+    };
+    wrap.append(header, items); container.appendChild(wrap); refreshCount();
+  });
+  return container;
+}
+window.addTaskSubgroup = async function(gid) {
+  var g = groups.find(function(x){ return x.id === gid; }); if (!g) return;
+  ensureTaskSubgroups(g);
+  var title = await showPrompt('Tên nhóm công việc con:', '', 'Thêm nhóm con');
+  if (!title || !title.trim()) return;
+  g.subgroupsConfigured = true;
+  g.subgroups.push({ id: 'sg' + Date.now() + Math.floor(Math.random()*1000), title: title.trim() });
+  saveG('Thêm nhóm con: ' + title.trim());
+};
+window.renameTaskSubgroup = async function(gid, sid) {
+  var g = groups.find(function(x){return x.id === gid;}); if (!g) return;
+  ensureTaskSubgroups(g);
+  var sub = g.subgroups.find(function(x){return x.id === sid;}); if (!sub) return;
+  var name = await showPrompt('Đổi tên nhóm con:', sub.title, 'Đổi tên nhóm con');
+  if (!name || !name.trim()) return;
+  sub.title = name.trim(); saveG('Đổi tên nhóm con');
+};
+window.removeTaskSubgroup = async function(gid, sid) {
+  var g = groups.find(function(x){return x.id === gid;}); if (!g) return;
+  ensureTaskSubgroups(g);
+  if (!await showConfirm('Xóa nhóm con? Các công việc sẽ chuyển về “Chưa phân nhóm”, không bị xóa.')) return;
+  g.subgroupsConfigured = true;
+  g.subgroups = g.subgroups.filter(function(x){return x.id !== sid;});
+  g.items.forEach(function(it){if (it.subgroupId === sid) delete it.subgroupId;});
+  saveG('Xóa nhóm con, giữ nguyên công việc');
+};
+window.assignTaskSubgroup = function(gid, tid, sid) {
+  var g = groups.find(function(x){return x.id === gid;}); if (!g) return;
+  ensureTaskSubgroups(g);
+  var it = g.items.find(function(x){return x.id === tid;}); if (!it) return;
+  if (sid && !g.subgroups.some(function(x){return x.id === sid;})) return;
+  if (sid) it.subgroupId = sid; else delete it.subgroupId;
+  saveG('Phân loại công đoạn: ' + it.name);
+};
+
 // ==================== GROUPS FUNCTIONS ====================
 function rGCompact() {
   var w = document.getElementById('groupsCompact');
@@ -1489,9 +1597,7 @@ function rGCompact() {
       emptyDiv.textContent = '📭 Chưa có công đoạn';
       body.appendChild(emptyDiv);
     } else {
-      var tasksContainer = document.createElement('div');
-      tasksContainer.className = 'group-compact-tasks';
-      g.items.forEach(function(it) {
+      var tasksContainer = buildSubgroupTaskList(g, function(it) {
         var taskDiv = document.createElement('div');
         taskDiv.className = 'group-compact-task';
         taskDiv.id = 'crow-' + it.id;
@@ -1519,10 +1625,11 @@ function rGCompact() {
         taskDiv.appendChild(taskName);
         taskName.addEventListener('click', function(e) {
           e.stopPropagation();
+          if (checkbox.disabled) return;
           checkbox.checked = !checkbox.checked;
-          checkbox.onchange();
+          checkbox.dispatchEvent(new Event('change', { bubbles: true }));
         });
-        tasksContainer.appendChild(taskDiv);
+        return taskDiv;
       });
       body.appendChild(tasksContainer);
     }
@@ -1552,16 +1659,19 @@ function rGFull() {
   groups.forEach(function(g) {
     var o = expanded[g.id] !== false,
       h = '';
+    ensureTaskSubgroups(g);
+    var subManager = '<div class="subgroup-manager"><button type="button" class="btn btn-xs" onclick="addTaskSubgroup(&quot;' + g.id + '&quot;);event.stopPropagation()">+ Nhóm con</button>' +
+      (g.subgroups || []).map(function(sub) { return '<span class="subgroup-admin-pill">' + escHtml(sub.title) + ' <button type="button" title="Đổi tên" onclick="renameTaskSubgroup(&quot;' + g.id + '&quot;,&quot;' + sub.id + '&quot;);event.stopPropagation()">✎</button> <button type="button" title="Xóa nhóm con" onclick="removeTaskSubgroup(&quot;' + g.id + '&quot;,&quot;' + sub.id + '&quot;);event.stopPropagation()">×</button></span>'; }).join('') + '</div>';
     if (g.items.length === 0) {
       h = '<div class="group-frame-empty">📭 Chưa có công đoạn</div>';
     } else {
       h = '<div class="task-list" data-g="' + g.id + '">';
       g.items.forEach(function(it, i) {
-        h += '<div class="task-item" draggable="true" data-id="' + it.id + '" data-group="' + g.id + '"><span class="task-drag-handle">⋮⋮</span><span class="task-number">' + (i + 1) + '</span><span class="task-name">' + it.name + '</span><div class="task-actions"><button class="btn btn-xs" onclick="mvTask(\'' + it.id + '\',-1);event.stopPropagation()">▲</button><button class="btn btn-xs" onclick="mvTask(\'' + it.id + '\',1);event.stopPropagation()">▼</button><button class="btn btn-xs" onclick="edTask(\'' + it.id + '\');event.stopPropagation()">✏️</button><button class="btn btn-xs btn-danger" onclick="rmTask(\'' + it.id + '\');event.stopPropagation()">🗑</button></div></div>';
+        h += '<div class="task-item" draggable="true" data-id="' + it.id + '" data-group="' + g.id + '"><span class="task-drag-handle">⋮⋮</span><span class="task-number">' + (i + 1) + '</span><span class="task-name">' + escHtml(it.name) + '</span><select class="task-subgroup-select" aria-label="Nhóm con của công đoạn" onchange="assignTaskSubgroup(&quot;' + g.id + '&quot;,&quot;' + it.id + '&quot;,this.value);event.stopPropagation()"><option value="">Chưa phân nhóm</option>' + (g.subgroups || []).map(function(sub){return '<option value="' + escHtml(sub.id) + '"' + (it.subgroupId === sub.id ? ' selected' : '') + '>' + escHtml(sub.title) + '</option>';}).join('') + '</select><div class="task-actions"><button class="btn btn-xs" onclick="mvTask(\'' + it.id + '\',-1);event.stopPropagation()">▲</button><button class="btn btn-xs" onclick="mvTask(\'' + it.id + '\',1);event.stopPropagation()">▼</button><button class="btn btn-xs" onclick="edTask(\'' + it.id + '\');event.stopPropagation()">✏️</button><button class="btn btn-xs btn-danger" onclick="rmTask(\'' + it.id + '\');event.stopPropagation()">🗑</button></div></div>';
       });
       h += '</div>';
     }
-    w.innerHTML += '<div class="group-frame' + (o ? ' open' : '') + '" data-gid="' + g.id + '"><div class="group-frame-header" onclick="tglGF(\'' + g.id + '\')"><div class="group-info"><div class="group-icon" style="background:' + (g.color || '#d1d5db') + '20;color:' + (g.color || '#d1d5db') + '">📁</div><span class="group-name">' + g.title + '</span></div><div class="group-meta"><span class="group-badge' + (g.items.length > 0 ? ' has-items' : '') + '">📋 ' + g.items.length + '</span><span class="group-toggle-icon">▼</span></div></div><div class="group-frame-body">' + h + '</div><div class="group-frame-footer"><button class="btn btn-xs" onclick="mvG(\'' + g.id + '\',-1);event.stopPropagation()">▲</button><button class="btn btn-xs" onclick="mvG(\'' + g.id + '\',1);event.stopPropagation()">▼</button><button class="btn btn-xs" onclick="addT(\'' + g.id + '\');event.stopPropagation()">+ Thêm</button><button class="btn btn-xs btn-danger" onclick="clrT(\'' + g.id + '\');event.stopPropagation()">Xóa hết</button><button class="btn btn-xs" onclick="copyGroupTasks(\'' + g.id + '\');event.stopPropagation()" title="Sao chép tất cả công đoạn">📋</button><button class="btn btn-xs" onclick="rnG(\'' + g.id + '\');event.stopPropagation()">✏️</button><input type="color" value="' + (g.color || '#d1d5db') + '" onchange="setGC(\'' + g.id + '\',this.value);event.stopPropagation()" style="width:24px;height:24px;padding:1px;border:1px solid #d1d5db;border-radius:4px;cursor:pointer" /></div></div>';
+    w.innerHTML += '<div class="group-frame' + (o ? ' open' : '') + '" data-gid="' + g.id + '"><div class="group-frame-header" onclick="tglGF(\'' + g.id + '\')"><div class="group-info"><div class="group-icon" style="background:' + (g.color || '#d1d5db') + '20;color:' + (g.color || '#d1d5db') + '">📁</div><span class="group-name">' + g.title + '</span></div><div class="group-meta"><span class="group-badge' + (g.items.length > 0 ? ' has-items' : '') + '">📋 ' + g.items.length + '</span><span class="group-toggle-icon">▼</span></div></div><div class="group-frame-body">' + subManager + h + '</div><div class="group-frame-footer"><button class="btn btn-xs" onclick="mvG(\'' + g.id + '\',-1);event.stopPropagation()">▲</button><button class="btn btn-xs" onclick="mvG(\'' + g.id + '\',1);event.stopPropagation()">▼</button><button class="btn btn-xs" onclick="addT(\'' + g.id + '\');event.stopPropagation()">+ Thêm</button><button class="btn btn-xs btn-danger" onclick="clrT(\'' + g.id + '\');event.stopPropagation()">Xóa hết</button><button class="btn btn-xs" onclick="copyGroupTasks(\'' + g.id + '\');event.stopPropagation()" title="Sao chép tất cả công đoạn">📋</button><button class="btn btn-xs" onclick="rnG(\'' + g.id + '\');event.stopPropagation()">✏️</button><input type="color" value="' + (g.color || '#d1d5db') + '" onchange="setGC(\'' + g.id + '\',this.value);event.stopPropagation()" style="width:24px;height:24px;padding:1px;border:1px solid #d1d5db;border-radius:4px;cursor:pointer" /></div></div>';
   });
   setupDD();
 }
@@ -1618,6 +1728,7 @@ function moveTG(tid, tgid) {
   f.g.items.splice(f.idx, 1);
   var tg = groups.find(function(g) { return g.id === tgid; });
   if (!tg) return;
+  if (f.item.subgroupId && !(tg.subgroups || []).some(function(x){return x.id === f.item.subgroupId;})) delete f.item.subgroupId;
   tg.items.push(f.item);
   saveG('Di chuyển công việc');
 }
@@ -3839,9 +3950,7 @@ function renderModalContent() {
     var body = document.createElement('div');
     body.className = 'group-compact-body';
     body.style.display = 'none';
-    var tasksDiv = document.createElement('div');
-    tasksDiv.className = 'group-compact-tasks';
-    g.items.forEach(function(it) {
+    var tasksDiv = buildSubgroupTaskList(g, function(it) {
       var isChecked = _editModalData.tasks.includes(it.name);
       var taskDiv = document.createElement('div');
       taskDiv.className = 'group-compact-task';
@@ -3870,7 +3979,7 @@ function renderModalContent() {
       nameSpan.className = 'group-compact-task-name';
       nameSpan.textContent = it.name;
       taskDiv.appendChild(nameSpan);
-      tasksDiv.appendChild(taskDiv);
+      return taskDiv;
     });
     body.appendChild(tasksDiv);
     frame.appendChild(body);
@@ -4573,19 +4682,58 @@ async function loadPersonalRecords() {
         
         var html = '<div style="margin-top:12px;"><h4 style="margin:0 0 10px 0;">📋 Chi tiết chấm công</h4><div style="overflow-x:auto"><table class="stats-table-compact"><tr><th>Ngày</th><th>Ca</th><th>Công đoạn</th><th>Đồng nghiệp</th><th>Ăn</th><th>Ghi chú</th></tr>';
         
+        // Tạo chỉ mục một lần trên TOÀN BỘ dữ liệu đã tải, không phải localRecs
+        // (localRecs chỉ chứa một nhân viên nên trước đây luôn báo "Một mình").
+        var colleagueIndex = new Map();
+        var visibleNames = null;
+        if (!isAdmin) {
+            visibleNames = new Set(getVisibleEmployees().map(function(e) {
+                return cleanEmployeeName(e.name).toLowerCase();
+            }));
+        }
+        function colleagueTaskNames(rec) {
+            var tasks = rec && rec.tasks;
+            if (typeof tasks === 'string') {
+                try { tasks = JSON.parse(tasks); } catch (_) { tasks = []; }
+            }
+            if (!Array.isArray(tasks)) return [];
+            return Array.from(new Set(tasks.map(function(t) {
+                return String(typeof t === 'string' ? t : ((t && t.task) || '')).trim().toLowerCase();
+            }).filter(Boolean)));
+        }
+        allRecs.forEach(function(r) {
+            if (!r || r.deleted || !r.date || !r.shift || !r.employee) return;
+            var name = cleanEmployeeName(r.employee);
+            var normalized = name.toLowerCase();
+            if (visibleNames && !visibleNames.has(normalized)) return;
+            colleagueTaskNames(r).forEach(function(taskName) {
+                var key = JSON.stringify([r.date, r.shift, taskName]);
+                if (!colleagueIndex.has(key)) colleagueIndex.set(key, new Map());
+                colleagueIndex.get(key).set(normalized, name);
+            });
+        });
+
         personalRecs.forEach(function(recItem) {
-            var colleagues = localRecs.filter(function(r) {
-                return r.date === recItem.date && r.shift === recItem.shift && cleanEmployeeName(r.employee) !== cleanEmployeeName(recItem.employee) &&
-                    (r.tasks || []).some(function(t1) { return (recItem.tasks || []).some(function(t2) { return t1.task === t2.task; }); });
-            }).map(function(r) { return cleanEmployeeName(r.employee); });
-            
-            var uniqueColleagues = Array.from(new Set(colleagues));
+            var ownName = cleanEmployeeName(recItem.employee).toLowerCase();
+            var colleaguesByName = new Map();
+            var isLeave = /nghỉ|\boff\b/i.test(String(recItem.shift || ''));
+            if (!isLeave) {
+                colleagueTaskNames(recItem).forEach(function(taskName) {
+                    var key = JSON.stringify([recItem.date, recItem.shift, taskName]);
+                    var people = colleagueIndex.get(key);
+                    if (people) people.forEach(function(name, normalized) {
+                        if (normalized !== ownName) colleaguesByName.set(normalized, name);
+                    });
+                });
+            }
+            var uniqueColleagues = Array.from(colleaguesByName.values());
             var tasksStr = (recItem.tasks || []).map(function(t) { return t.task; }).join(', ');
             var colleaguesHtml = '';
             if (uniqueColleagues.length > 0) {
-                uniqueColleagues.forEach(function(c) { colleaguesHtml += '<span class="colleague-tag">' + escHtml(cleanEmployeeName(c)) + '</span> '; });
+                uniqueColleagues.sort(function(a, b) { return a.localeCompare(b, 'vi'); });
+                uniqueColleagues.forEach(function(c) { colleaguesHtml += '<span class="colleague-tag">' + escHtml(c) + '</span> '; });
             } else {
-                colleaguesHtml = '<span class="muted">Một mình</span>';
+                colleaguesHtml = '<span class="muted">' + (isLeave ? '—' : 'Một mình') + '</span>';
             }
             
             var noteStr = recItem.note || '-';
@@ -6398,4 +6546,4 @@ window.refreshStatsNow = function() {
     if (typeof showAlert === 'function') showAlert('✅ Đã làm mới dữ liệu!');
 };
 // Phiên bản chẩn đoán tài nguyên, không ảnh hưởng tới dữ liệu chấm công.
-window.CHAMCONG_BULK_UI_VERSION = '20261122-bulk-click-v4-date-fix';
+window.CHAMCONG_BULK_UI_VERSION = '20261122-task-subgroups-v1-colleagues-fix';
