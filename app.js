@@ -198,6 +198,144 @@ async function _writeRecordDb(rows, markMigration, source) {
   _persistedRecordJSON = next;
   _syncPending = pendingNext;
 }
+// Kiểm tra đồng nhất nghiệp vụ; không báo lỗi giả do tasks là JSON string/mảng.
+function _syncNormalizedTasks(value) {
+  if (typeof value === 'string') {
+    try { value = JSON.parse(value); } catch(e) { return value.trim(); }
+  }
+  if (!Array.isArray(value)) return value == null ? [] : value;
+  return value.map(function(t) {
+    if (typeof t === 'string') return t.trim();
+    return { group:String(t && t.group || '').trim(), task:String(t && t.task || '').trim() };
+  }).sort(function(a,b) { return JSON.stringify(a).localeCompare(JSON.stringify(b)); });
+}
+function _syncBusinessProjection(r) {
+  if (!r) return null;
+  return {
+    id:String(r.id || ''), employee:String(r.employee || ''), date:String(r.date || ''),
+    shift:String(r.shift || ''), eat:String(r.eat || ''),
+    tasks:_syncNormalizedTasks(r.tasks), note:String(r.note || ''),
+    sortOrder:r.sortOrder == null ? null : Number(r.sortOrder), deleted:r.deleted === true
+  };
+}
+function _syncBusinessEqual(a,b) {
+  return JSON.stringify(_syncBusinessProjection(a)) === JSON.stringify(_syncBusinessProjection(b));
+}
+// Công cụ chỉ đối chiếu; không tự sửa bản ghi đã sửa cục bộ nhưng thiếu pending.
+async function _auditSyncMonth(monthStr) {
+  await flushRecords();
+  await firebaseAuthReady;
+  var bounds = _monthBounds(monthStr);
+  var snap = await db.ref('chamcong/records').orderByChild('date')
+    .startAt(bounds[0]).endAt(bounds[1]).once('value');
+  var remote = new Map(), remoteKeys = new Map();
+  snap.forEach(function(child) {
+    var r = child.val();
+    if (r && r.id) {
+      if (remote.has(String(r.id))) throw new Error('Firebase trùng ID: ' + r.id);
+      remote.set(String(r.id), r);
+      remoteKeys.set(String(r.id), child.key);
+      _firebaseKeyCache.set(String(r.id), child.key);
+    }
+  });
+  var local = _recordsCache.filter(function(r) { return _monthOf(r.date) === monthStr && !r.deleted; });
+  var candidates = [], conflicts = [], remoteOnly = [], tombstones = 0;
+  local.forEach(function(r) {
+    var id = String(r.id), server = remote.get(id), pending = _syncPending.get(id);
+    if (pending) return; // Các thay đổi đang chờ sẽ được xử lý bởi Smart Sync gốc.
+    if (!server) {
+      conflicts.push({id:id, issue:'Có trên máy nhưng chưa thấy Firebase', local:r, remote:null});
+      return;
+    }
+    if (server.deleted) {
+      conflicts.push({id:id, issue:'Firebase đã đánh dấu xóa', local:r, remote:server});
+      return;
+    }
+    if (_syncBusinessEqual(r,server)) return;
+    var lt=Number(r.lastModified || 0), rt=Number(server.lastModified || 0);
+    if (lt > rt) candidates.push({id:id, local:r, remote:server, firebaseKey:remoteKeys.get(id)});
+    else conflicts.push({id:id, issue:lt === rt ? 'Cùng thời điểm sửa, khác nội dung' : 'Firebase mới hơn', local:r, remote:server});
+  });
+  remote.forEach(function(r,id) {
+    if (r.deleted) { tombstones++; return; }
+    if (!local.some(function(x) { return String(x.id)===id; })) remoteOnly.push({id:id, row:r});
+  });
+  return { month:monthStr, localCount:local.length, firebaseCount:remote.size,
+    candidates:candidates, conflicts:conflicts, remoteOnly:remoteOnly, tombstones:tombstones };
+}
+window.inspectFirebaseDifferences = async function(monthStr) {
+  monthStr = monthStr || getLocalDateStr().slice(0,7);
+  var audit = await _auditSyncMonth(monthStr);
+  console.table({month:audit.month, local:audit.localCount, firebase:audit.firebaseCount,
+    localNewer:audit.candidates.length, conflicts:audit.conflicts.length,
+    remoteOnly:audit.remoteOnly.length, tombstones:audit.tombstones,
+    pending:_syncPending.size});
+  console.table(audit.candidates.map(function(x) { return {id:x.id,
+    localEmployee:x.local.employee, remoteEmployee:x.remote.employee,
+    localNote:x.local.note, remoteNote:x.remote.note,
+    localModified:x.local.lastModified, remoteModified:x.remote.lastModified}; }));
+  if (audit.conflicts.length) console.warn('Các xung đột KHÔNG tự ghi đè:', audit.conflicts);
+  return audit;
+};
+function _syncDownloadBackup(audit) {
+  var content = JSON.stringify({createdAt:new Date().toISOString(), month:audit.month,
+    candidates:audit.candidates.map(function(x){return {firebaseKey:x.firebaseKey, local:x.local, remote:x.remote};}),
+    conflicts:audit.conflicts, remoteOnly:audit.remoteOnly}, null, 2);
+  var blob = new Blob([content], {type:'application/json'}), url=URL.createObjectURL(blob);
+  var a=document.createElement('a'); a.href=url; a.download='doi_chieu_firebase_'+audit.month+'_'+Date.now()+'.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 30000);
+}
+window.promptRepairFirebaseDifferences = function() {
+  var month = prompt('Nhập tháng cần đối chiếu (YYYY-MM):', getLocalDateStr().slice(0,7));
+  if (month === null) return;
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
+    showAlert('Tháng không hợp lệ. Ví dụ: 2026-11'); return;
+  }
+  return window.repairFirebaseDifferences(month);
+};
+window.repairFirebaseDifferences = async function(monthStr) {
+  if (!isAdmin) { await showAlert('Chỉ Admin được sửa dữ liệu Firebase.'); return; }
+  monthStr = monthStr || getLocalDateStr().slice(0,7);
+  try {
+    var audit = await _auditSyncMonth(monthStr);
+    if (!audit.candidates.length) {
+      await showAlert('Tháng '+monthStr+': không có bản ghi máy mới hơn Firebase để khôi phục. Xung đột: '+audit.conflicts.length+'.');
+      return audit;
+    }
+    // Sao lưu bắt buộc cả hai phiên bản trước khi thao tác ghi.
+    _syncDownloadBackup(audit);
+    var confirmed = await showConfirm('Đã xuất file dự phòng đối chiếu '+monthStr+'.\n\n' +
+      'Có '+audit.candidates.length+' bản ghi TRÊN MÁY MỚI HƠN Firebase sẽ được gửi.\n' +
+      audit.conflicts.length+' xung đột và '+audit.tombstones+' dấu xóa trên Firebase KHÔNG được sửa.\n\n' +
+      'Chỉ xác nhận nếu bản máy tính là dữ liệu đúng. Tiếp tục?');
+    if (!confirmed) return audit;
+    await firebaseAuthReady;
+    var sent=0, skipped=0;
+    for (var item of audit.candidates) {
+      if (_syncPending.has(item.id)) { skipped++; continue; }
+      // Transaction bảo vệ nếu thiết bị khác vừa thay đổi bản ghi trên máy chủ.
+      var ref=db.ref('chamcong/records/'+item.firebaseKey);
+      var expected=JSON.stringify(item.remote);
+      var result=await ref.transaction(function(current) {
+        if (JSON.stringify(current) !== expected) return; // abort, no overwrite
+        return item.local;
+      }, undefined, false);
+      if (!result.committed || !_syncBusinessEqual(result.snapshot.val(),item.local)) {
+        skipped++; console.warn('Không ghi đè vì máy chủ đã thay đổi:', item.id);
+        continue;
+      }
+      var readBack=(await ref.once('value')).val();
+      if (!_syncBusinessEqual(readBack,item.local)) throw new Error('Xác minh dữ liệu ghi thất bại: '+item.id);
+      sent++;
+    }
+    if (sent) await db.ref('chamcong/last_updated').set(firebase.database.ServerValue.TIMESTAMP);
+    await showAlert('✅ Đã xác minh '+sent+' bản ghi được khôi phục lên Firebase. '+
+      skipped+' bản ghi bỏ qua để bảo vệ xung đột. Điện thoại sẽ được kiểm tra lại khi mở ứng dụng/ấn Update.');
+    return {sent:sent, skipped:skipped, audit:audit};
+  } catch(e) { console.error('Khôi phục đồng bộ:',e); await showAlert('❌ Dừng khôi phục: '+e.message); throw e; }
+};
+
 // Đánh dấu đã gửi xong CHỈ SAU khi Firebase xác nhận ghi thành công.
 async function _ackSyncedRecord(id, sent) {
   await flushRecords();
@@ -291,10 +429,16 @@ async function _mergeAndSaveRecords(incoming, deletedIds) {
   var cleanIncoming = _normalizeRecords(incoming).filter(function(r) {
     return !_syncPending.has(String(r.id)) && !r.deleted;
   });
-  var merged = _mergeRecords(_recordsCache, cleanIncoming).filter(function(r) {
-    return !(deletedIds && deletedIds.has(String(r.id)) && !_syncPending.has(String(r.id))) &&
-      !(_syncPending.has(String(r.id)) && _syncPending.get(String(r.id)).op === 'delete');
+  var map = new Map(_normalizeRecords(_recordsCache).map(function(r) { return [String(r.id), r]; }));
+  cleanIncoming.forEach(function(r) {
+    var id=String(r.id), old=map.get(id);
+    // Khi máy không có pending, Firebase thắng nếu mới hơn hoặc bằng phiên bản.
+    // Khi bản máy mới hơn nhưng chưa có pending, giữ lại để Admin đối chiếu.
+    if (!old || Number(r.lastModified || 0) >= Number(old.lastModified || 0)) map.set(id,r);
   });
+  if (deletedIds) deletedIds.forEach(function(id) { if (!_syncPending.has(id)) map.delete(id); });
+  _syncPending.forEach(function(change,id) { if (change.op==='delete') map.delete(id); });
+  var merged=Array.from(map.values());
   await _persistRecords(merged, 'remote');
   return merged;
 }
@@ -350,7 +494,13 @@ async function _syncFirebaseLists() {
     db.ref('chamcong/hidden_emps').once('value')
   ]);
   var employees = results[0].val(), grps = results[1].val(), hidden = results[2].val();
-  if (employees) { emp = Array.isArray(employees) ? employees : Object.values(employees); S(EMP_KEY, emp); }
+  if (employees) {
+    var fetchedEmployees = Array.isArray(employees) ? employees : Object.values(employees);
+    S(EMP_KEY, fetchedEmployees);
+    emp = isAdmin ? fetchedEmployees : fetchedEmployees.filter(function(e) {
+      return getHiddenEmployees().indexOf(e.id) === -1;
+    });
+  }
   if (grps) { groups = Array.isArray(grps) ? grps : Object.values(grps); S(GROUP_KEY, groups); }
   if (hidden) localStorage.setItem('hidden_emps', JSON.stringify(hidden));
 }
@@ -650,6 +800,7 @@ function adminMode() {
     
     emp = L(EMP_KEY, []);
     rEmp();
+    if (typeof renderMissingEmployees === 'function') renderMissingEmployees();
     
     var backupSec = document.getElementById('backupSection');
     if (backupSec) backupSec.style.display = '';
@@ -1979,8 +2130,17 @@ window.toggleMissingEmp = function() {
   if (section) section.classList.toggle('open');
 };
 
-window.refreshMissingEmp = function() {
-  renderMissingEmployees();
+window.refreshMissingEmp = async function() {
+  try {
+    var month=getLocalDateStr().slice(0,7);
+    await _syncFirebaseLists();
+    await _fetchFirebaseMonth(month,true);
+    refreshAllUI();
+  } catch(e) {
+    console.warn('Không tải mới được dữ liệu chấm công:',e);
+    renderMissingEmployees();
+    await showAlert('⚠️ Đang hiển thị dữ liệu trên máy. Không tải được Firebase: '+e.message);
+  }
 };
 
 function getMissingEmployees() {
@@ -1990,13 +2150,16 @@ function getMissingEmployees() {
   var currentDay = now.getDate();
   var monthPrefix = currentYear + '-' + String(currentMonth).padStart(2, '0');
   var allRecords = L(REC_KEY, []);
-  var empDaysMap = {};
+  var empDaysMap = Object.create(null);
+  // Chỉ sử dụng danh sách nhân viên đã tải; không được báo 'đủ' nếu thiếu danh mục.
   emp.forEach(function(e) {
-    empDaysMap[e.name] = new Set();
+    if (e && e.name) empDaysMap[String(e.name).trim()] = new Set();
   });
   allRecords.forEach(function(r) {
-    if (r.date.startsWith(monthPrefix) && empDaysMap[r.employee]) {
-      empDaysMap[r.employee].add(r.date);
+    if (!r || r.deleted || !r.date || !r.employee) return;
+    var name=String(r.employee).trim();
+    if (r.date.startsWith(monthPrefix) && empDaysMap[name]) {
+      empDaysMap[name].add(r.date);
     }
   });
   var missing = [];
@@ -2004,7 +2167,7 @@ function getMissingEmployees() {
     var missingDays = [];
     for (var day = 1; day <= currentDay; day++) {
       var dateStr = monthPrefix + '-' + String(day).padStart(2, '0');
-      if (!empDaysMap[e.name].has(dateStr)) {
+      if (!empDaysMap[String(e.name).trim()].has(dateStr)) {
         missingDays.push(dateStr);
       }
     }
@@ -2026,7 +2189,10 @@ function renderMissingEmployees() {
   countEl.textContent = missing.length;
   countEl.className = 'missing-emp-count';
   if (missing.length === 0) countEl.classList.add('zero');
-  if (missing.length === 0) {
+  if (!emp.length) {
+    countEl.textContent = '—';
+    listEl.innerHTML = '<div class="missing-emp-empty">⚠️ Chưa tải được danh sách nhân viên. Không thể kết luận đã chấm công đầy đủ.</div>';
+  } else if (missing.length === 0) {
     listEl.innerHTML = '<div class="missing-emp-empty">✅ Tất cả nhân viên đã được chấm công đầy đủ trong tháng!</div>';
   } else {
     listEl.innerHTML = '';
@@ -2043,7 +2209,7 @@ function renderMissingEmployees() {
       empDiv.style.cssText = 'width:100%;margin-bottom:8px;';
       var nameDiv = document.createElement('div');
       nameDiv.style.cssText = 'font-weight:700;font-size:13px;color:#78350f;margin-bottom:4px;display:flex;align-items:center;gap:6px;';
-      nameDiv.innerHTML = '👤 ' + cleanEmployeeName(item.name) +
+      nameDiv.innerHTML = '👤 ' + escHtml(cleanEmployeeName(item.name)) +
         ' <span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:10px;font-size:11px;">Thiếu ' +
         item.missingDays.length + ' ngày</span>';
       empDiv.appendChild(nameDiv);
@@ -4700,8 +4866,8 @@ function refreshAllUI() {
     rGFull();
     rShiftList();
     renderAudit();
-    renderMissingEmployees();
   }
+  renderMissingEmployees();
   // renderStatistics tự bỏ qua nếu tab đang ẩn.
   renderStatistics();
   var empCount = document.getElementById('empCount');
@@ -4742,11 +4908,23 @@ async function init() {
     checkAdmin();
     var empCount = document.getElementById('empCount');
     if (empCount) empCount.textContent = emp.length + ' NV';
-    if (!isAdmin && typeof db !== 'undefined' && !window._lastUpdatedListenerAttached) {
+    if (typeof db !== 'undefined' && !window._lastUpdatedListenerAttached) {
       window._lastUpdatedListenerAttached = true;
       window._lastUpdatedListener = db.ref('chamcong/last_updated').on('value', function(snap) {
-        var lastUpdated = snap.val();
+        var lastUpdated = Number(snap.val() || 0);
+        var oldValue = Number(localStorage.getItem('firebase_last_updated') || 0);
         if (lastUpdated) localStorage.setItem('firebase_last_updated', String(lastUpdated));
+        if (lastUpdated > oldValue && oldValue > 0 && _recordsReady && !window._smartMonthRefreshRunning) {
+          window._smartMonthRefreshRunning = true;
+          (async function() {
+            try {
+              var month=getLocalDateStr().slice(0,7);
+              await _fetchFirebaseMonth(month,true);
+              refreshAllUI();
+            } catch(e) { console.warn('Lỗi làm mới sau cập nhật Firebase:',e); }
+            finally { window._smartMonthRefreshRunning = false; }
+          })();
+        }
         var lastSeen = Number(localStorage.getItem('last_seen_update') || 0);
         var badge = document.getElementById('updateBadge');
         if (badge) badge.style.display = lastUpdated && lastUpdated > lastSeen ? 'inline-block' : 'none';
@@ -4767,6 +4945,17 @@ async function init() {
       } catch(e) { console.error('❌ Tải dữ liệu khởi tạo thất bại:', e); showAlert('❌ Không tải được dữ liệu Firebase: ' + e.message); }
     } else {
       refreshAllUI();
+      // Cache-first: giao diện hiện ngay, nhưng vẫn đối chiếu Firebase khi mở.
+      // Không tải lại tất cả tháng, chỉ tháng hiện tại.
+      (async function() {
+        try {
+          await _syncFirebaseLists();
+          var now = new Date();
+          var currentMonth = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+          await _fetchFirebaseMonth(currentMonth, true);
+          refreshAllUI();
+        } catch(e) { console.warn('Không làm mới được tháng hiện tại:',e); }
+      })();
     }
 
 
@@ -5230,6 +5419,9 @@ async function saveToFirebase() {
       update['chamcong/records/' + key] = payload;
       update['chamcong/last_updated'] = firebase.database.ServerValue.TIMESTAMP;
       await db.ref().update(update);
+      var confirmedRemote = (await db.ref('chamcong/records/' + key).once('value')).val();
+      if (!_syncBusinessEqual(confirmedRemote, payload))
+        throw new Error('Firebase không trả về đúng bản vừa gửi: ' + id);
       await _ackSyncedRecord(id, change);
       success++;
     }
