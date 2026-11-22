@@ -2056,6 +2056,26 @@ window.subAtt = async function(e, keepTimestamp) {
   if (_isRestOverviewShift(sh)) ts = [];
   var attDateCheck = dt.split('T')[0];
   var rec = await getRecords(); // Lấy từ IndexedDB
+  // Khi chọn hàng loạt, kiểm tra ngày và chống tạo trùng ngay trước lúc lưu.
+  if (_bulkMissingDate && dt !== _bulkMissingDate) {
+    await showAlert('Bạn đã đổi ngày sau khi chọn hàng loạt. Hãy chọn lại danh sách theo ngày mới để tránh chấm công nhầm.');
+    return false;
+  }
+  if (_bulkMissingDate && dt === _bulkMissingDate) {
+    var preExisting = new Set(rec.filter(function(r) {
+      return r && !r.deleted && r.date === dt && r.employee;
+    }).map(function(r) { return String(r.employee).trim(); }));
+    var duplicated = selectedEmployees.filter(function(name) {
+      return preExisting.has(String(name).trim());
+    });
+    if (duplicated.length) {
+      await showAlert('⚠️ Có ' + duplicated.length + ' nhân viên đã được chấm công ngày ' +
+        formatDate(dt) + ' sau khi lập danh sách. Không lưu để tránh trùng. ' +
+        'Hãy làm mới danh sách thiếu công rồi chọn lại ngày.');
+      renderMissingEmployees();
+      return false;
+    }
+  }
   var now = Date.now();
   
   selectedEmployees.forEach(function(en, i) {
@@ -2084,6 +2104,9 @@ window.subAtt = async function(e, keepTimestamp) {
 };
 
 window.rstForm = function() {
+  _bulkMissingDate = '';
+  var bulkNotice = document.getElementById('bulkMissingSelectionNotice');
+  if (bulkNotice) bulkNotice.hidden = true;
   var dateInput = document.getElementById('attDate');
   var currentDate = dateInput ? dateInput.value : getLocalDateStr();
   var activeShiftBtn = document.querySelector('.shift-btn.active');
@@ -2122,6 +2145,54 @@ window.rstForm = function() {
       }
     }
   }
+};
+
+// Chọn nhanh nhân viên còn thiếu theo một ngày: chỉ đưa vào FORM, không tự ghi dữ liệu.
+var _bulkMissingDate = '';
+
+window.selectAllMissingForDate = async function(dateStr) {
+  if (!isAdmin) {
+    await showAlert('Chức năng chọn hàng loạt chỉ dành cho Admin.');
+    return;
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return;
+  var monthNow = getLocalDateStr().slice(0, 7);
+  if (dateStr.slice(0, 7) !== monthNow || dateStr > getLocalDateStr()) {
+    await showAlert('Chỉ được chọn ngày thiếu công trong tháng hiện tại.');
+    return;
+  }
+
+  var missing = getMissingEmployees();
+  var names = missing.filter(function(m) {
+    return m.missingDays.indexOf(dateStr) !== -1;
+  }).map(function(m) { return m.name; });
+  names = Array.from(new Set(names));
+  if (!names.length) {
+    await showAlert('Ngày ' + formatDate(dateStr) + ' không còn nhân viên thiếu chấm công trên máy.');
+    renderMissingEmployees();
+    return;
+  }
+
+  var msg = 'Chọn ' + names.length + ' nhân viên chưa chấm công ngày ' + formatDate(dateStr) +
+    '?\nDanh sách đang chọn trong form sẽ được thay thế.\n' +
+    'Bạn vẫn cần tự chọn ca (ví dụ Nghỉ) và nhấn Lưu; chưa có bản ghi nào được tạo ở bước này.';
+  if (!await showConfirm(msg, 'Chọn nhân viên theo ngày')) return;
+
+  selectedEmployees = names;
+  _bulkMissingDate = dateStr;
+  var dateInput = document.getElementById('attDate');
+  if (dateInput) dateInput.value = dateStr;
+  renderSelectedEmployees();
+  var input = document.getElementById('employeeInput');
+  if (input) input.value = '';
+  var box = document.getElementById('bulkMissingSelectionNotice');
+  if (box) {
+    box.textContent = '✅ Đã chọn ' + names.length + ' nhân viên chưa chấm công ngày ' +
+      formatDate(dateStr) + '. Hãy chọn ca Nghỉ (nếu tất cả đều nghỉ) rồi nhấn Lưu.';
+    box.hidden = false;
+  }
+  var form = document.getElementById('attendanceForm');
+  if (form) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
 
 // ==================== MISSING EMPLOYEES ====================
@@ -2204,6 +2275,34 @@ function renderMissingEmployees() {
     summaryDiv.style.cssText = 'width:100%;padding:4px 0 8px 0;font-size:12px;color:#92400e;font-weight:600;';
     summaryDiv.textContent = '📊 ' + missing.length + ' nhân viên thiếu tổng cộng ' + totalMissingDays + ' ngày công';
     listEl.appendChild(summaryDiv);
+    // Nhóm nhân viên còn thiếu theo từng ngày; không phụ thuộc thứ tự danh sách cá nhân.
+    if (isAdmin) {
+      var dates = Object.create(null);
+      missing.forEach(function(item) {
+        item.missingDays.forEach(function(dateStr) {
+          dates[dateStr] = (dates[dateStr] || 0) + 1;
+        });
+      });
+      var bulkBar = document.createElement('div');
+      bulkBar.className = 'missing-bulk-bar';
+      var heading = document.createElement('div');
+      heading.className = 'missing-bulk-heading';
+      heading.textContent = '📅 Chọn nhanh toàn bộ nhân viên còn thiếu theo ngày:';
+      bulkBar.appendChild(heading);
+      var buttons = document.createElement('div');
+      buttons.className = 'missing-bulk-days';
+      Object.keys(dates).sort().reverse().forEach(function(dateStr) {
+        var button = document.createElement('button');
+        button.type = 'button'; // Nằm trong form: tuyệt đối không submit khi chỉ chọn ngày
+        button.className = 'missing-bulk-day-btn';
+        button.textContent = formatDate(dateStr) + ' · ' + dates[dateStr] + ' NV';
+        button.title = 'Chọn ' + dates[dateStr] + ' nhân viên còn thiếu ngày ' + formatDate(dateStr);
+        button.onclick = function() { selectAllMissingForDate(dateStr); };
+        buttons.appendChild(button);
+      });
+      bulkBar.appendChild(buttons);
+      listEl.appendChild(bulkBar);
+    }
     missing.forEach(function(item) {
       var empDiv = document.createElement('div');
       empDiv.style.cssText = 'width:100%;margin-bottom:8px;';
