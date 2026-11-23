@@ -2574,6 +2574,7 @@ function renderStatistics() {
   html += '<button class="sub-tab" onclick="switchSubTab(\'task-detail\')"style="font-size:13px">Theo CĐ</button>';
   html += '<button class="sub-tab" onclick="switchSubTab(\'double-shift\')"style="font-size:13px">Tăng ca</button>';
   html += '<button class="sub-tab" onclick="switchSubTab(\'pair-ranking\')"style="font-size:13px">Cặp đôi làm chung nhiều nhất</button>';
+  html += '<button class="sub-tab" onclick="switchSubTab(\'employee-workdays\')" style="font-size:13px">📊 Tổng công NV</button>';
   html += '</div>';
 
   // Dashboard tab
@@ -2711,6 +2712,20 @@ html += '</div>';
 html += '<p style="color:#64748b; font-size:13px; margin:0 0 12px 0;">Nhập tên nhân viên, chọn công đoạn rồi nhấn Thống kê. Chỉ hiển thị Top 3 người làm chung nhiều nhất. Nếu chọn công đoạn cụ thể, cả hai phải cùng làm công đoạn đó trong cùng ngày và ca.</p>';
 html += '</div>';
 html += '</div>';
+
+  // Bảng tổng công từng nhân viên: chỉ đọc records, không sửa dữ liệu.
+  html += '<div id="subTabEmployeeWorkdays" style="display:none;">';
+  html += '<div class="sub-tab-content-frame"><h3>📊 Tổng số công từng nhân viên</h3>';
+  html += '<p class="muted">Quy đổi theo quy tắc hiện tại của tab Cá nhân: 8 giờ = 1 công, 1/2 Ca = 0,5 công, Nghỉ = 0 công. Cùng một nhân viên/ngày/ca chỉ tính một lần.</p>';
+  html += '<div class="workdays-controls">';
+  html += '<label>Thời gian<select id="workdaysPeriod" onchange="renderEmployeeWorkdays()"><option value="month">Theo tháng</option><option value="all">Tất cả dữ liệu đã tải</option></select></label>';
+  html += '<label>Chọn tháng<input type="month" id="workdaysMonth" onchange="renderEmployeeWorkdays()"></label>';
+  html += '<label>Tìm nhân viên<input type="text" id="workdaysSearch" placeholder="Nhập tên nhân viên" oninput="renderEmployeeWorkdays()"></label>';
+  html += '<button class="btn btn-sm" type="button" onclick="refreshEmployeeWorkdaysMonth()">🔄 Tải lại tháng</button>';
+  html += '<button class="btn btn-sm" type="button" onclick="exportEmployeeWorkdaysCSV()">📥 Xuất CSV</button>';
+  html += '</div>';
+  html += '<div id="workdaysSummary" class="muted"></div>';
+  html += '<div id="workdaysTable" class="workdays-table-wrap"></div></div></div>';
 
   el.innerHTML = html;
   initStatsAutocomplete();
@@ -4187,12 +4202,14 @@ window.switchSubTab = function(tabName) {
     shiftEl = document.getElementById('subTabShiftDetail'),
     taskEl = document.getElementById('subTabTaskDetail'),
     overtimeEl = document.getElementById('subTabOvertime'),
-    pairEl = document.getElementById('subTabPairRanking');
+    pairEl = document.getElementById('subTabPairRanking'),
+    workdaysEl = document.getElementById('subTabEmployeeWorkdays');
   if (dashboardEl) dashboardEl.style.display = 'none';
   if (shiftEl) shiftEl.style.display = 'none';
   if (taskEl) taskEl.style.display = 'none';
   if (overtimeEl) overtimeEl.style.display = 'none';
   if (pairEl) pairEl.style.display = 'none';
+  if (workdaysEl) workdaysEl.style.display = 'none';
   var subTabs = document.querySelectorAll('#statsContent .sub-tab');
   if (tabName === 'dashboard') {
     if (dashboardEl) dashboardEl.style.display = 'block';
@@ -4208,6 +4225,11 @@ window.switchSubTab = function(tabName) {
     if (overtimeEl) overtimeEl.style.display = 'block';
     if (subTabs[3]) subTabs[3].classList.add('active');
     loadDoubleShiftRanking();
+  }
+  else if (tabName === 'employee-workdays') {
+    if (workdaysEl) workdaysEl.style.display = 'block';
+    if (subTabs[5]) subTabs[5].classList.add('active');
+    if (typeof window.renderEmployeeWorkdays === 'function') window.renderEmployeeWorkdays();
   }
   else if (tabName === 'pair-ranking') { 
     if (subTabs[4]) subTabs[4].classList.add('active');

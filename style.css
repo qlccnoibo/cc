@@ -2518,3 +2518,16 @@ body.admin-mode .employee-only {
 .employee-ocr-panel .ocr-memory-list {display:grid;gap:5px;max-height:220px;overflow:auto;margin-top:8px}
 .employee-ocr-panel .ocr-memory-item {display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;overflow-wrap:anywhere}
 .employee-ocr-panel .ocr-memory-item span {min-width:0}
+
+/* Bảng tổng công nhân viên - chỉ ảnh hưởng tab mới */
+.workdays-controls{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;margin:12px 0}
+.workdays-controls label{display:flex;flex-direction:column;gap:5px;min-width:155px;flex:1;font-size:12px;color:#475569}
+.workdays-controls input,.workdays-controls select{min-width:0;width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:9px;background:#fff;font-size:14px}
+.workdays-controls button{min-height:39px}
+.workdays-table-wrap{overflow-x:auto;margin-top:12px}
+.workdays-table{border-collapse:collapse;width:100%;font-size:13px;min-width:550px}
+.workdays-table th,.workdays-table td{padding:10px 9px;text-align:left;border-bottom:1px solid #e2e8f0;white-space:nowrap}
+.workdays-table th{background:#f1f5f9;position:sticky;top:0}
+.workdays-table td.workdays-number,.workdays-table th.workdays-number{text-align:right;font-variant-numeric:tabular-nums}
+.workdays-table tr:hover td{background:#f8fafc}
+.workdays-total{font-weight:700;color:#1d4ed8}

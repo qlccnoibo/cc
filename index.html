@@ -178,17 +178,17 @@
       <button onclick="saveToFirebase()" style="background:#f59e0b; color:white; border:none; padding:10px 16px; border-radius:8px;">
           ☁️ Lưu lên Firebase
       </button>
-      <!--<button onclick="promptRepairFirebaseDifferences()" style="background:#0d9488;color:white;border:none;padding:10px 16px;border-radius:8px;cursor:pointer;">
-          🛡️ Khôi phục bản sửa chưa đồng bộ-->
+      <button onclick="promptRepairFirebaseDifferences()" style="background:#0d9488;color:white;border:none;padding:10px 16px;border-radius:8px;cursor:pointer;">
+          🛡️ Khôi phục bản sửa chưa đồng bộ
       </button>
       <button onclick="loadFromFirebase()" style="background:#3b82f6; color:white; border:none; padding:10px 16px; border-radius:8px;">
           📥 Tải từ Firebase
       </button>
-      <!--<button onclick="loadAllRecordsFromFirebase()" style="background:#8b5cf6; color:white; border:none; padding:10px 16px; border-radius:8px;">
-          📥 Tải toàn bộ dữ liệu-->
+      <button onclick="loadAllRecordsFromFirebase()" style="background:#8b5cf6; color:white; border:none; padding:10px 16px; border-radius:8px;">
+          📥 Tải toàn bộ dữ liệu
       </button>
-      <!--<button onclick="checkData()" style="background:#ef4444;color:white;padding:8px 16px;border:none;border-radius:8px;">
-          🔍 Kiểm tra dữ liệu-->
+      <button onclick="checkData()" style="background:#ef4444;color:white;padding:8px 16px;border:none;border-radius:8px;">
+          🔍 Kiểm tra dữ liệu
         </button>
         <button class="btn btn-sm" onclick="backupAllData()">💾 Backup</button>
         <button class="btn btn-sm" onclick="restoreAllData()">📂 Restore</button>
@@ -359,8 +359,9 @@ if ('serviceWorker' in navigator) {
   <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
 
   <!-- Code chính của bạn (Đổi version lên 591 để xóa cache cũ) -->
-  <script src="app.js?v=stt-persist-20261123-v1"></script>
+  <script src="app.js?v=20261123-workdays-v1"></script>
   <script src="ocr-employees.js?v=20261123-ocr-smart-memory-v2"></script>
+  <script src="cong-nhan-vien.js?v=20261123-workdays-v1"></script>
 
 </body>
 </html>
