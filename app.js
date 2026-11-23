@@ -2573,8 +2573,8 @@ function renderStatistics() {
   html += '<button class="sub-tab" onclick="switchSubTab(\'shift-detail\')"style="font-size:13px"">Theo Ca</button>';
   html += '<button class="sub-tab" onclick="switchSubTab(\'task-detail\')"style="font-size:13px">Theo CĐ</button>';
   html += '<button class="sub-tab" onclick="switchSubTab(\'double-shift\')"style="font-size:13px">Tăng ca</button>';
+  html += '<button class="sub-tab" onclick="switchSubTab(\'employee-workdays\')" style="font-size:13px">Tổng công NV</button>';
   html += '<button class="sub-tab" onclick="switchSubTab(\'pair-ranking\')"style="font-size:13px">Cặp đôi làm chung nhiều nhất</button>';
-  html += '<button class="sub-tab" onclick="switchSubTab(\'employee-workdays\')" style="font-size:13px">📊 Tổng công NV</button>';
   html += '</div>';
 
   // Dashboard tab

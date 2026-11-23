@@ -2693,3 +2693,35 @@ body.admin-mode .employee-only {
   #subTabEmployeeWorkdays .workdays-table th,
   #subTabEmployeeWorkdays .workdays-table td { padding: 8px 3px; }
 }
+
+/* ===== TONG CONG NV: SAFARI iOS MONTH PICKER FIX V4 =====
+   The native month control may have an intrinsic inline size larger than
+   a half-width grid cell. Put the month control on its own row on phones. */
+@media (max-width: 640px) {
+  #subTabEmployeeWorkdays .workdays-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+  #subTabEmployeeWorkdays .workdays-controls > label:nth-child(1),
+  #subTabEmployeeWorkdays .workdays-controls > label:nth-child(2),
+  #subTabEmployeeWorkdays .workdays-controls > label:nth-child(3) {
+    grid-column: 1 / -1;
+    min-width: 0 !important;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+  }
+  #subTabEmployeeWorkdays #workdaysMonth {
+    display: block;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    padding: 9px 10px;
+    font-size: 16px;
+    -webkit-appearance: auto;
+    appearance: auto;
+  }
+}
