@@ -12,7 +12,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
   <!-- CSS -->
-  <link rel="stylesheet" href="style.css?v=task-subgroups-v1-20261122">
+  <link rel="stylesheet" href="style.css?v=20261123-ocr-smart-memory-v2">
   <!-- PWA -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#2563eb">
@@ -76,6 +76,37 @@
             🗑 Xóa tất cả
         </button>
         </div>
+        <section id="employeeOcrPanel" class="employee-ocr-panel" aria-label="Nhập nhân viên từ hình ảnh">
+  <details>
+    <summary>📷 Thêm nhân viên từ ảnh <span class="ocr-mini">Nhận diện và đối chiếu tên</span></summary>
+    <div class="ocr-body">
+      <p class="muted">Chọn ảnh chứa tên nhân viên. Hệ thống nhận diện chữ trên thiết bị và gợi ý tên đã có trong danh sách. Kiểm tra kết quả trước khi thêm.</p>
+      <input id="ocrEmployeeImage" type="file" accept="image/*" aria-label="Chọn ảnh có danh sách nhân viên" />
+      <img id="ocrEmployeePreview" class="ocr-preview" alt="Ảnh nhân viên đã chọn" hidden />
+      <div class="ocr-action-row">
+        <button type="button" class="btn btn-primary btn-sm" id="ocrEmployeeScan">🔍 Nhận diện chữ</button>
+        <button type="button" class="btn btn-sm" id="ocrEmployeeAnalyze">↻ Đối chiếu lại tên</button>
+      </div>
+      <label for="ocrEmployeeText">Chữ đọc từ ảnh (có thể sửa lại)</label>
+      <textarea id="ocrEmployeeText" class="ocr-raw-text" placeholder="Tên nhân viên sau khi nhận diện sẽ xuất hiện tại đây. Bạn cũng có thể dán danh sách tên để đối chiếu." rows="4"></textarea>
+      <div id="ocrEmployeeStatus" class="muted" role="status" aria-live="polite">Chưa chọn ảnh.</div>
+      <div id="ocrEmployeeResults" class="ocr-results"></div>
+      <button type="button" class="btn btn-primary" id="ocrEmployeeAdd" disabled>✅ Thêm các tên đã tích vào form</button>
+      <details id="ocrMemoryPanel" class="ocr-memory-panel">
+        <summary>🧠 Bộ nhớ tên OCR <span id="ocrMemoryCount" class="ocr-mini">0 quy tắc</span></summary>
+        <p class="muted">Chỉ ghi nhớ những tên bạn tích xác nhận. Lưu trên thiết bị; có thể đồng bộ thủ công giữa máy tính và điện thoại khi Firebase cho phép.</p>
+        <div class="ocr-action-row">
+          <button type="button" class="btn btn-sm" id="ocrMemoryPull">↓ Nhận từ Firebase</button>
+          <button type="button" class="btn btn-sm" id="ocrMemoryPush">↑ Gửi lên Firebase</button>
+        </div>
+        <div id="ocrMemoryStatus" class="muted" role="status"></div>
+        <div id="ocrMemoryList" class="ocr-memory-list"></div>
+      </details>
+      <p class="muted">Không tự tạo nhân viên mới, không tự lưu chấm công. OCR sử dụng thư viện Tesseract.js tải từ CDN và xử lý ảnh ngay trên thiết bị; cần mạng khi tải thư viện/ngôn ngữ lần đầu.</p>
+    </div>
+  </details>
+</section>
+
         <div class="selected-employees" id="selectedEmployees"></div>
         <div id="bulkMissingSelectionNotice" class="bulk-missing-selection-notice" hidden></div>
         <!--<div class="selected-hint" id="selectedHint">👆 Gõ tên và chọn từ danh sách gợi ý để thêm nhân viên</div> -->
@@ -147,15 +178,15 @@
       <button onclick="saveToFirebase()" style="background:#f59e0b; color:white; border:none; padding:10px 16px; border-radius:8px;">
           ☁️ Lưu lên Firebase
       </button>
-      <button onclick="promptRepairFirebaseDifferences()" style="background:#0d9488;color:white;border:none;padding:10px 16px;border-radius:8px;cursor:pointer;">
+      <!--<button onclick="promptRepairFirebaseDifferences()" style="background:#0d9488;color:white;border:none;padding:10px 16px;border-radius:8px;cursor:pointer;">
           🛡️ Khôi phục bản sửa chưa đồng bộ
-      </button>
+      </button> -->
       <button onclick="loadFromFirebase()" style="background:#3b82f6; color:white; border:none; padding:10px 16px; border-radius:8px;">
           📥 Tải từ Firebase
       </button>
-      <button onclick="loadAllRecordsFromFirebase()" style="background:#8b5cf6; color:white; border:none; padding:10px 16px; border-radius:8px;">
-          📥 Tải toàn bộ dữ liệu
-      </button>
+      <!--<button onclick="loadAllRecordsFromFirebase()" style="background:#8b5cf6; color:white; border:none; padding:10px 16px; border-radius:8px;">
+          📥 Tải toàn bộ dữ liệu -->
+      </button> 
       <button onclick="checkData()" style="background:#ef4444;color:white;padding:8px 16px;border:none;border-radius:8px;">
           🔍 Kiểm tra dữ liệu
         </button>
@@ -328,6 +359,7 @@ if ('serviceWorker' in navigator) {
   <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
 
   <!-- Code chính của bạn (Đổi version lên 591 để xóa cache cũ) -->
-  <script src="app.js?v=task-subgroups-v1-colleagues-fix-20261122"></script>
+  <script src="app.js?v=task-subgroups-v1-colleagues-fix-ocr-20261123"></script>
+  <script src="ocr-employees.js?v=20261123-ocr-smart-memory-v2"></script>
 </body>
 </html>

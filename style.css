@@ -2493,3 +2493,28 @@ body.admin-mode .employee-only {
 .subgroup-admin-pill button {border:0;background:transparent;cursor:pointer;color:#406ca3;font-weight:bold;}
 .task-subgroup-select {max-width:135px;width:auto;min-width:80px;padding:4px 6px!important;border-radius:6px!important;font-size:11px!important;margin-left:auto;}
 @media(max-width:600px){.task-subgroup-header{padding:11px 9px;}.task-subgroup-select{max-width:110px;}.task-subgroup-count{font-size:10px;}}
+/* OCR employee picker */
+.employee-ocr-panel{margin:9px 0 12px;border:1px solid #dbe6f5;border-radius:12px;background:#f8fbff;overflow:hidden}
+.employee-ocr-panel summary{padding:11px 13px;cursor:pointer;font-weight:700;font-size:13px;color:#1e40af;min-height:44px;display:list-item}
+.employee-ocr-panel .ocr-mini{font-weight:400;font-size:11px;color:#64748b;margin-left:5px}
+.employee-ocr-panel .ocr-body{border-top:1px solid #e2e8f0;padding:12px;display:grid;gap:9px}
+.employee-ocr-panel input[type=file]{max-width:100%;font-size:13px}
+.employee-ocr-panel .ocr-preview{max-width:100%;max-height:220px;object-fit:contain;border-radius:8px;border:1px solid #e2e8f0;background:white}
+.employee-ocr-panel .ocr-action-row{display:flex;gap:8px;flex-wrap:wrap}
+.employee-ocr-panel .ocr-raw-text{width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:10px;min-height:84px;font-family:inherit;font-size:13px}
+.employee-ocr-panel .ocr-results{display:grid;gap:6px;max-height:310px;overflow:auto}
+.employee-ocr-panel .ocr-person-row{display:flex;align-items:center;gap:9px;padding:8px 10px;border:1px solid #e2e8f0;background:white;border-radius:9px}
+.employee-ocr-panel .ocr-person-check{width:18px;height:18px;flex-shrink:0;accent-color:#2563eb}
+.employee-ocr-panel .ocr-person-info{display:grid;gap:4px;min-width:0;flex:1}
+.employee-ocr-panel .ocr-person-info small{color:#64748b;overflow-wrap:anywhere}
+.employee-ocr-panel .ocr-person-select{width:100%;font-size:13px;padding:7px;border-radius:7px;min-width:0}
+@media(max-width:480px){.employee-ocr-panel .ocr-mini{display:block;margin:3px 0 0}}
+
+/* OCR Smart Memory */
+.employee-ocr-panel .ocr-remember-choice {font-size:12px;font-weight:400;color:#334155;display:flex;align-items:center;gap:5px;margin:2px 0;cursor:pointer}
+.employee-ocr-panel .ocr-remember-check {width:17px;height:17px;flex-shrink:0;accent-color:#2563eb}
+.employee-ocr-panel .ocr-memory-panel {border:1px solid #dbe6f5;border-radius:10px;background:#fff;padding:10px;max-width:100%}
+.employee-ocr-panel .ocr-memory-panel summary {min-height:34px;padding:6px 3px;color:#1e40af;font-size:13px}
+.employee-ocr-panel .ocr-memory-list {display:grid;gap:5px;max-height:220px;overflow:auto;margin-top:8px}
+.employee-ocr-panel .ocr-memory-item {display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;overflow-wrap:anywhere}
+.employee-ocr-panel .ocr-memory-item span {min-width:0}
