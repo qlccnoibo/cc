@@ -193,60 +193,6 @@
         <button class="btn btn-sm" onclick="backupAllData()">💾 Backup</button>
         <button class="btn btn-sm" onclick="restoreAllData()">📂 Restore</button>
     </div>
-      <!-- Firebase usage dashboard - read-only, manually entered official Console metrics -->
-      <section id="firebaseUsagePanel" class="fu-panel" aria-label="Theo dõi dung lượng Firebase">
-        <div class="fu-head">
-          <div>
-            <h3>📊 Dung lượng Firebase Realtime Database</h3>
-            <p id="fu-source-label">Số liệu Firebase Console được nhập thủ công; không phải thống kê tự động.</p>
-          </div>
-          <div class="fu-actions">
-            <a id="fu-console-link" class="fu-btn fu-btn-outline" href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer">Mở Firebase Console ↗</a>
-            <button type="button" class="fu-btn fu-btn-main" id="fu-edit-btn">Nhập số liệu</button>
-          </div>
-        </div>
-        <div class="fu-cards">
-          <div class="fu-metric">
-            <span>Dung lượng lưu trữ (Firebase)</span><strong id="fu-storage">Chưa có dữ liệu</strong>
-            <div class="fu-progress"><i id="fu-storage-bar"></i></div>
-            <small id="fu-storage-caption">Giới hạn Spark: 1 GB</small>
-          </div>
-          <div class="fu-metric">
-            <span>Tải xuống 7 ngày (Firebase)</span><strong id="fu-download-7d">Chưa có dữ liệu</strong>
-            <small id="fu-download-7d-caption">Tính trên toàn bộ lượt tải xuống</small>
-          </div>
-          <div class="fu-metric">
-            <span>Tải xuống tháng này (Firebase)</span><strong id="fu-download-month">Chưa có dữ liệu</strong>
-            <div class="fu-progress"><i id="fu-download-bar"></i></div>
-            <small id="fu-download-caption">Giới hạn Spark: 10 GB/tháng</small>
-          </div>
-        </div>
-        <div class="fu-chart-card">
-          <div class="fu-chart-title">Tải xuống theo ngày (7 ngày) <span>MB/ngày · dữ liệu bạn nhập từ Firebase</span></div>
-          <div id="fu-chart" class="fu-chart"><p class="fu-empty">Chưa có số liệu theo ngày. Bạn có thể nhập 7 giá trị từ Firebase Console để vẽ biểu đồ.</p></div>
-        </div>
-        <div class="fu-local">
-          <div><strong>📱 Bộ nhớ trên thiết bị này</strong><small>Đây là dữ liệu trình duyệt, không phải hạn mức Firebase.</small></div>
-          <div id="fu-local-details">Đang đo...</div>
-          <button type="button" id="fu-local-refresh" class="fu-btn fu-btn-outline">Đo lại</button>
-        </div>
-        <p class="fu-foot" id="fu-updated">Số liệu chưa được nhập. Để xem số liệu chính xác, mở Firebase Console → Realtime Database → Usage.</p>
-        <form id="fu-entry-form" class="fu-form" hidden>
-          <h4>Cập nhật số liệu từ Firebase Console</h4>
-          <p>Điền số liệu thực tế bạn thấy ở Firebase; các mục không có số liệu có thể để trống. Thông tin chỉ được lưu trên trình duyệt này.</p>
-          <div class="fu-input-grid">
-            <label>Dung lượng đang lưu (MB)<input id="fu-in-storage" type="number" min="0" step="any" inputmode="decimal" placeholder="Ví dụ: 3.31"></label>
-            <label>Download 7 ngày (MB)<input id="fu-in-week" type="number" min="0" step="any" inputmode="decimal" placeholder="Ví dụ: 240"></label>
-            <label>Download tháng này (MB)<input id="fu-in-month" type="number" min="0" step="any" inputmode="decimal" placeholder="Nếu biết"></label>
-            <label>Ngày đo số liệu<input id="fu-in-date" type="date"></label>
-          </div>
-          <details class="fu-day-details"><summary>Nhập lượng tải từng ngày để vẽ biểu đồ (tùy chọn)</summary>
-            <div id="fu-days" class="fu-day-grid"></div>
-          </details>
-          <div class="fu-form-actions"><button type="submit" class="fu-btn fu-btn-main">Lưu số liệu</button><button type="button" id="fu-cancel" class="fu-btn fu-btn-outline">Đóng</button></div>
-          <p id="fu-error" role="alert" class="fu-error"></p>
-        </form>
-      </section>
       <div class="manage-layout">
         <div>
           <h3>📋 Nhóm công việc <span class="muted" id="groupCount">0 nhóm</span></h3>
@@ -415,6 +361,6 @@ if ('serviceWorker' in navigator) {
   <!-- Code chính của bạn (Đổi version lên 591 để xóa cache cũ) -->
   <script src="app.js?v=stt-persist-20261123-v1"></script>
   <script src="ocr-employees.js?v=20261123-ocr-smart-memory-v2"></script>
-  <script src="firebase-usage.js?v=20261123-usage-dashboard-v1"></script>
+
 </body>
 </html>
