@@ -2586,3 +2586,110 @@ body.admin-mode .employee-only {
   #pageQuanLy .task-item > .task-subgroup-select { grid-column: 2 / 4; grid-row: 2; }
   #pageQuanLy .task-item > .task-actions { grid-column: 2 / 4; grid-row: 3; justify-content: flex-end; }
 }
+
+
+/* ===== TONG CONG NV: MOBILE WIDTH FIX V3 =====
+   Scoped to the workdays sub-tab; keeps unrelated tables unchanged. */
+#subTabEmployeeWorkdays,
+#subTabEmployeeWorkdays .sub-tab-content-frame,
+#subTabEmployeeWorkdays .workdays-controls,
+#subTabEmployeeWorkdays .workdays-table-wrap {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+}
+#subTabEmployeeWorkdays .workdays-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+#subTabEmployeeWorkdays .workdays-controls > label {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  gap: 5px;
+  margin: 0;
+  overflow: hidden;
+}
+#subTabEmployeeWorkdays .workdays-controls input,
+#subTabEmployeeWorkdays .workdays-controls select {
+  display: block;
+  min-width: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box;
+  margin: 0;
+  font-size: 14px;
+}
+#subTabEmployeeWorkdays .workdays-controls input[type="month"] {
+  min-width: 0 !important;
+  -webkit-appearance: auto;
+  appearance: auto;
+}
+#subTabEmployeeWorkdays .workdays-controls > button {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+}
+#subTabEmployeeWorkdays .workdays-table-wrap {
+  width: 100%;
+  overflow-x: hidden;
+  margin-top: 12px;
+}
+#subTabEmployeeWorkdays .workdays-table {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 13px;
+}
+#subTabEmployeeWorkdays .workdays-table th,
+#subTabEmployeeWorkdays .workdays-table td {
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  white-space: normal;
+  padding: 9px 7px;
+  vertical-align: middle;
+}
+#subTabEmployeeWorkdays .workdays-table th:nth-child(1),
+#subTabEmployeeWorkdays .workdays-table td:nth-child(1) { width: 12%; }
+#subTabEmployeeWorkdays .workdays-table th:nth-child(2),
+#subTabEmployeeWorkdays .workdays-table td:nth-child(2) { width: 42%; }
+#subTabEmployeeWorkdays .workdays-table th:nth-child(3),
+#subTabEmployeeWorkdays .workdays-table td:nth-child(3) { width: 23%; }
+#subTabEmployeeWorkdays .workdays-table th:nth-child(4),
+#subTabEmployeeWorkdays .workdays-table td:nth-child(4) { width: 23%; }
+@media (max-width: 640px) {
+  #subTabEmployeeWorkdays .workdays-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 8px;
+  }
+  #subTabEmployeeWorkdays .workdays-controls > label:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+  #subTabEmployeeWorkdays .workdays-controls > button {
+    width: 100%;
+    min-height: 42px;
+  }
+  #subTabEmployeeWorkdays .workdays-table { font-size: 12px; }
+  #subTabEmployeeWorkdays .workdays-table th,
+  #subTabEmployeeWorkdays .workdays-table td { padding: 9px 4px; }
+  #subTabEmployeeWorkdays .workdays-table th:nth-child(1),
+  #subTabEmployeeWorkdays .workdays-table td:nth-child(1) { width: 10%; }
+  #subTabEmployeeWorkdays .workdays-table th:nth-child(2),
+  #subTabEmployeeWorkdays .workdays-table td:nth-child(2) { width: 39%; }
+  #subTabEmployeeWorkdays .workdays-table th:nth-child(3),
+  #subTabEmployeeWorkdays .workdays-table td:nth-child(3) { width: 27%; }
+  #subTabEmployeeWorkdays .workdays-table th:nth-child(4),
+  #subTabEmployeeWorkdays .workdays-table td:nth-child(4) { width: 24%; }
+}
+@media (max-width: 380px) {
+  #subTabEmployeeWorkdays .sub-tab-content-frame { padding: 10px; }
+  #subTabEmployeeWorkdays .workdays-table { font-size: 11px; }
+  #subTabEmployeeWorkdays .workdays-table th,
+  #subTabEmployeeWorkdays .workdays-table td { padding: 8px 3px; }
+}
