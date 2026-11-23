@@ -4228,11 +4228,11 @@ window.switchSubTab = function(tabName) {
   }
   else if (tabName === 'employee-workdays') {
     if (workdaysEl) workdaysEl.style.display = 'block';
-    if (subTabs[5]) subTabs[5].classList.add('active');
+    if (subTabs[4]) subTabs[4].classList.add('active');
     if (typeof window.renderEmployeeWorkdays === 'function') window.renderEmployeeWorkdays();
   }
   else if (tabName === 'pair-ranking') { 
-    if (subTabs[4]) subTabs[4].classList.add('active');
+    if (subTabs[5]) subTabs[5].classList.add('active');
     var pairEl = document.getElementById('subTabPairRanking');
     if (pairEl) pairEl.style.display = 'block';
     showPairRanking();
