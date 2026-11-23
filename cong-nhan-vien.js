@@ -1,4 +1,4 @@
-/* Tổng công nhân viên - bảng chỉ đọc, không sửa dữ liệu hoặc Firebase */
+/* Tổng công nhân viên - công/nghỉ giống tab Cá nhân; chỉ đọc */
 (function () {
   'use strict';
   function getRecordsSafe() {
@@ -30,7 +30,7 @@
     return input.value;
   }
   function calculate(rows, month, all) {
-    const grouped = new Map(), shiftSeen = new Set();
+    const grouped = new Map();
     const allEmployees = Array.isArray(emp) ? emp : [];
     const hidden = !isAdmin && typeof getHiddenEmployees === 'function' ? getHiddenEmployees() : [];
     const hiddenNames = new Set(allEmployees.filter(x => hidden.includes(x.id)).map(x => employeeKey(x.name)));
@@ -38,28 +38,29 @@
     for (const person of allEmployees) {
       if (!person || !person.name || (!isAdmin && hidden.includes(person.id))) continue;
       const k = employeeKey(person.name);
-      if (!grouped.has(k)) grouped.set(k, {name: person.name, hours:0, shifts:0, dates:new Set(), leave:new Set()});
+      if (!grouped.has(k)) grouped.set(k, {name: person.name, hours:0, leave:0});
     }
     for (const r of rows) {
       if (!r || r.deleted || !r.employee || !/^\d{4}-\d{2}-\d{2}$/.test(String(r.date))) continue;
       if (!all && !String(r.date).startsWith(month)) continue;
       const k = employeeKey(r.employee);
       if (!isAdmin && hiddenNames.has(k)) continue;
-      if (!grouped.has(k)) grouped.set(k, {name:r.employee,hours:0,shifts:0,dates:new Set(),leave:new Set()});
+      if (!grouped.has(k)) grouped.set(k, {name:r.employee,hours:0,leave:0});
       const item = grouped.get(k);
       const sh = normalizedShift(r.shift);
       if (!sh) continue;
-      const duplicateKey = k + '|' + r.date + '|' + sh;
-      if (shiftSeen.has(duplicateKey)) continue;
-      shiftSeen.add(duplicateKey);
+      // Thống nhất với tab Cá nhân: cộng giờ của TẤT CẢ các bản ghi
+      // theo getShiftHours(), không loại trùng chỉ vì cùng ngày/cùng ca.
+      // Hai bản ghi 1/2 Ca hợp lệ trong cùng ngày = 8 giờ = 1 công.
       let hours = typeof getShiftHours === 'function' ? Number(getShiftHours(r.shift)) : 0;
       if (!Number.isFinite(hours) || hours < 0) hours = 0;
-      if (sh.includes('nghỉ') || sh.includes('off')) item.leave.add(r.date);
-      if (hours > 0) { item.hours += hours; item.shifts++; item.dates.add(r.date); }
+      item.hours += hours;
+      // Tab Cá nhân đếm một lượt Nghỉ cho mỗi bản ghi trong phân bố ca.
+      if (sh.includes('nghỉ') || sh.includes('off')) item.leave++;
     }
     return Array.from(grouped.values()).map(x => ({
       name:x.name, work:Math.round(x.hours/8*100)/100,
-      hours:x.hours, shifts:x.shifts, days:x.dates.size, leave:x.leave.size
+      hours:x.hours, leave:x.leave
     })).sort((a,b) => b.work-a.work || a.name.localeCompare(b.name,'vi'));
   }
   let lastExport = [];
@@ -79,9 +80,9 @@
     lastExport = filtered;
     const work = filtered.reduce((sum,r)=>sum+r.work,0);
     summary.textContent = `${filtered.length} nhân viên · ${formatWork(work)} công · ${all?'Toàn bộ dữ liệu đã tải':('Tháng '+month)}. Số liệu dựa trên dữ liệu đã đồng bộ trong thiết bị.`;
-    let html = '<table class="workdays-table"><thead><tr><th>STT</th><th>Nhân viên</th><th class="workdays-number">Tổng công</th><th class="workdays-number">Số ca làm</th><th class="workdays-number">Ngày có công</th><th class="workdays-number">Ngày nghỉ</th></tr></thead><tbody>';
-    filtered.forEach((r,i) => { html += `<tr><td>${i+1}</td><td>${htmlText(nameLabel(r.name))}</td><td class="workdays-number workdays-total">${formatWork(r.work)}</td><td class="workdays-number">${r.shifts}</td><td class="workdays-number">${r.days}</td><td class="workdays-number">${r.leave}</td></tr>`; });
-    result.innerHTML = html + (filtered.length ? '</tbody></table>' : '<tr><td colspan="6" style="text-align:center">Không có nhân viên phù hợp</td></tr></tbody></table>');
+    let html = '<table class="workdays-table"><thead><tr><th>STT</th><th>Nhân viên</th><th class="workdays-number">Tổng công</th><th class="workdays-number">Ngày nghỉ</th></tr></thead><tbody>';
+    filtered.forEach((r,i) => { html += `<tr><td>${i+1}</td><td>${htmlText(nameLabel(r.name))}</td><td class="workdays-number workdays-total">${formatWork(r.work)}</td><td class="workdays-number">${r.leave}</td></tr>`; });
+    result.innerHTML = html + (filtered.length ? '</tbody></table>' : '<tr><td colspan="4" style="text-align:center">Không có nhân viên phù hợp</td></tr></tbody></table>');
   };
   window.refreshEmployeeWorkdaysMonth = async function () {
     const month = monthValue();
@@ -102,8 +103,8 @@
     } finally { if (button) button.disabled = false; }
   };
   window.exportEmployeeWorkdaysCSV = function () {
-    const lines = [['STT','Nhân viên','Tổng công','Số ca làm','Ngày có công','Ngày nghỉ']];
-    lastExport.forEach((r,i)=>lines.push([i+1,r.name,r.work,r.shifts,r.days,r.leave]));
+    const lines = [['STT','Nhân viên','Tổng công','Ngày nghỉ']];
+    lastExport.forEach((r,i)=>lines.push([i+1,r.name,r.work,r.leave]));
     const content = '\ufeff'+lines.map(cols=>cols.map(x=>'"'+String(x).replace(/"/g,'""')+'"').join(',')).join('\r\n');
     const blob = new Blob([content], {type:'text/csv;charset=utf-8'});
     const url = URL.createObjectURL(blob), a = document.createElement('a');
@@ -111,5 +112,5 @@
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),1000);
   };
-  window.CHAMCONG_EMPLOYEE_WORKDAYS_VERSION='20261123-workdays-v1';
+  window.CHAMCONG_EMPLOYEE_WORKDAYS_VERSION='20261123-workdays-personal-v2';
 })();
