@@ -225,7 +225,8 @@ function _syncBusinessProjection(r) {
     id:String(r.id || ''), employee:String(r.employee || ''), date:String(r.date || ''),
     shift:String(r.shift || ''), eat:String(r.eat || ''),
     tasks:_syncNormalizedTasks(r.tasks), note:String(r.note || ''),
-    sortOrder:r.sortOrder == null ? null : Number(r.sortOrder), deleted:r.deleted === true
+    sortOrder:r.sortOrder == null ? null : Number(r.sortOrder),
+    overviewOrder:r.overviewOrder == null ? null : Number(r.overviewOrder), deleted:r.deleted === true
   };
 }
 function _syncBusinessEqual(a,b) {
@@ -3052,6 +3053,26 @@ function _overviewMatchesKey(record, key) {
   return _overviewGroupKey(record) === key;
 }
 
+// Một thuật toán sắp xếp duy nhất, dùng cho bảng, nút ▲▼, STT và kéo thả.
+function _compareOverviewGroups(a, b, keyA, keyB) {
+  if (a.date !== b.date) return String(b.date).localeCompare(String(a.date));
+  var hasA = a.overviewOrder != null && Number.isFinite(Number(a.overviewOrder));
+  var hasB = b.overviewOrder != null && Number.isFinite(Number(b.overviewOrder));
+  if (hasA && hasB && Number(a.overviewOrder) !== Number(b.overviewOrder))
+    return Number(a.overviewOrder) - Number(b.overviewOrder);
+  // Hỗn hợp bản ghi cũ/mới: bản ghi được sắp tay trước, các dòng mới ở sau.
+  if (hasA !== hasB) return hasA ? -1 : 1;
+  var order = ['Ca 1', 'Ca 2', 'Ca 3', 'HC', '1/2 Ca', 'Nghỉ'];
+  var nameA = String(a.shift || '').split('(')[0].trim();
+  var nameB = String(b.shift || '').split('(')[0].trim();
+  var ia = order.indexOf(nameA), ib = order.indexOf(nameB);
+  if (ia < 0) ia = 99;
+  if (ib < 0) ib = 99;
+  if (ia !== ib) return ia - ib;
+  var ta = String(a.firstTimestamp || '99'), tb = String(b.firstTimestamp || '99');
+  return ta.localeCompare(tb) || String(keyA || '').localeCompare(String(keyB || ''));
+}
+
 // ==================== STATS TABLE FUNCTIONS ====================
 function renderStatsTable(records) {
   // 👉 Lọc nhân viên ẩn
@@ -3085,7 +3106,8 @@ function renderStatsTable(records) {
         tasks: record.tasks || [],
         restTaskLabels: [],
         employees: [],
-        firstTimestamp: record.sortOrder || record.timestamp || '9999'
+        firstTimestamp: record.sortOrder || record.timestamp || '9999',
+        overviewOrder: Number.isFinite(Number(record.overviewOrder)) && record.overviewOrder != null ? Number(record.overviewOrder) : null
       };
     }
     if (_isRestOverviewShift(record.shift)) {
@@ -3095,6 +3117,11 @@ function renderStatsTable(records) {
           grouped[key].restTaskLabels.push(label);
         }
       });
+    }
+    // Thứ tự đã lưu theo nhóm được ưu tiên khi mở lại trang.
+    if (record.overviewOrder != null && Number.isFinite(Number(record.overviewOrder))) {
+      var rank = Number(record.overviewOrder);
+      if (grouped[key].overviewOrder == null || rank < grouped[key].overviewOrder) grouped[key].overviewOrder = rank;
     }
     var cleanName = cleanEmployeeName(record.employee);
     if (grouped[key].employees.indexOf(cleanName) === -1) {
@@ -3106,21 +3133,8 @@ function renderStatsTable(records) {
       }
   });
   var sortedKeys = Object.keys(grouped);
-  sortedKeys.sort(function(a, b) {
-    var groupA = grouped[a];
-    var groupB = grouped[b];
-    if (groupA.date !== groupB.date) return groupB.date.localeCompare(groupA.date); // Ngày mới nhất hiển thị trước
-    var shiftNameA = groupA.shift ? groupA.shift.split('(')[0].trim() : '';
-    var shiftNameB = groupB.shift ? groupB.shift.split('(')[0].trim() : '';
-    var order = ['Ca 1', 'Ca 2', 'Ca 3', 'HC', '1/2 Ca', 'Nghỉ'];
-    var orderA = order.indexOf(shiftNameA);
-    var orderB = order.indexOf(shiftNameB);
-    if (orderA === -1) orderA = 99;
-    if (orderB === -1) orderB = 99;
-    if (orderA !== orderB) return orderA - orderB;
-    if (window._manualSort) return 0;
-    return String(groupA.firstTimestamp || '99').localeCompare(String(groupB.firstTimestamp || '99'));
-  });
+  // Ngày mới nhất luôn trước; trong cùng ngày sử dụng thứ tự Admin đã lưu.
+  sortedKeys.sort(function(a, b) { return _compareOverviewGroups(grouped[a], grouped[b], a, b); });
   var allGroups = sortedKeys.map(function(key) {
     return { key: key, data: grouped[key] };
   });
@@ -3138,6 +3152,7 @@ function renderCurrentOverviewPage(container) {
   var endIdx = Math.min(startIdx + state.itemsPerPage, state.data.length);
   var pageData = state.data.slice(startIdx, endIdx);
   var html = '<h3 style="margin:12px 0 8px 0; font-size:16px; font-weight:700; color:#1e293b;">📋 Bảng chi tiết công việc</h3>';
+  if (isAdmin && _overviewOrderMessage) html += '<div role="status" style="font-size:12px;color:#166534;margin:0 0 8px">' + escHtml(_overviewOrderMessage) + '</div>';
   html += '<div style="overflow-x:auto"><table class="stats-table-compact">';
   html += '<tr><th>STT</th><th>Ngày</th><th>Nhân viên</th><th>Ca làm</th><th>Công việc</th><th>Ghi chú</th><th>Ăn</th><th style="width:110px">Thao tác</th></tr>';
   pageData.forEach(function(item, idx) {
@@ -3868,6 +3883,7 @@ window.openEditModal = function(groupKey) {
   _editModalData.originalEmployees = [..._editModalData.employees];
   _editModalData.originalTimestamp = matchingRecords[0]?.timestamp || new Date().toISOString();
   _editModalData.originalSortOrder = matchingRecords[0]?.sortOrder || Date.now();
+  _editModalData.originalOverviewOrder = matchingRecords[0]?.overviewOrder;
   _editModalData.originalDate = groupDate;
   _editModalData.originalShift = groupShift;
   _editModalData.originalEat = groupEat;
@@ -4075,7 +4091,9 @@ window.saveGroupFromModal = async function() {
       note: note,
       timestamp: originalTs,
       lastModified: Date.now(),
-      sortOrder: _editModalData.originalSortOrder || Date.now()
+      sortOrder: _editModalData.originalSortOrder || Date.now(),
+      overviewOrder: originalRecord && originalRecord.overviewOrder != null ? originalRecord.overviewOrder :
+        (_editModalData.originalOverviewOrder != null ? _editModalData.originalOverviewOrder : undefined)
     });
   });
   await S(REC_KEY, allRecords);
@@ -4777,114 +4795,88 @@ window.hideNotePopup = function() {
   }
 };
 
-// ==================== MOVE GROUP FUNCTIONS ====================
-window.moveGroupUp = function(gidx) {
-  window._manualSort = true;
-  var key = _tableGroupMap[gidx];
-  if (!key) return;
-  var allRecords = L(REC_KEY, []);
-  var sortedKeys = Object.keys(_tableGroupMap);
-  var currentIdx = -1;
-  for (var i = 0; i < sortedKeys.length; i++) {
-    if (_tableGroupMap[sortedKeys[i]] === key) { currentIdx = i; break; }
+// ==================== THỨ TỰ STT BỀN VỮNG ====================
+// Chỉ thay đổi metadata vị trí, tuyệt đối không thay ID, ngày, ca, công đoạn hay thứ tự records.
+var _overviewMoveRunning = false;
+var _overviewOrderMessage = '';
+function _overviewGroupsForDate(day) {
+  var grouped = new Map();
+  L(REC_KEY, []).forEach(function(r) {
+    if (!r || r.deleted || r.date !== day) return;
+    var key = _overviewGroupKey(r);
+    var g = grouped.get(key);
+    if (!g) {
+      g = {date:r.date, shift:r.shift, firstTimestamp:r.sortOrder || r.timestamp || '9999', overviewOrder:null};
+      grouped.set(key,g);
+    }
+    var rank = r.overviewOrder;
+    if (rank != null && Number.isFinite(Number(rank))) {
+      if (g.overviewOrder == null || Number(rank) < g.overviewOrder) g.overviewOrder = Number(rank);
+    }
+    var ts = r.sortOrder || r.timestamp;
+    if (ts && String(ts) < String(g.firstTimestamp)) g.firstTimestamp = ts;
+  });
+  return Array.from(grouped.keys()).sort(function(a,b) {
+    return _compareOverviewGroups(grouped.get(a), grouped.get(b), a, b);
+  });
+}
+async function _moveOverviewGroup(fromKey, toKey, after) {
+  if (!isAdmin) { await showAlert('Chỉ Admin được thay đổi STT.'); return false; }
+  if (_overviewMoveRunning || !fromKey || !toKey || fromKey === toKey) return false;
+  // Mỗi ngày độc lập để không phá quy tắc ngày mới nhất hiển thị đầu tiên.
+  var dayFrom = _overviewGroupKeyDate(fromKey), dayTo = _overviewGroupKeyDate(toKey);
+  if (!dayFrom || dayFrom !== dayTo) {
+    await showAlert('Bạn chỉ có thể đổi STT giữa các dòng trong cùng ngày. Thứ tự ngày mới nhất vẫn được giữ nguyên.');
+    return false;
   }
-  if (currentIdx <= 0) return;
-  var prevKey = _tableGroupMap[sortedKeys[currentIdx - 1]];
-  var parts1 = key.split('|');
-  var parts2 = prevKey.split('|');
-  var group1Date = parts1[0],
-    group1Shift = parts1[1],
-    group1Eat = parts1[2],
-    group1Note = parts1[3] === '-' ? '' : parts1[3];
-  var group2Date = parts2[0],
-    group2Shift = parts2[1],
-    group2Eat = parts2[2],
-    group2Note = parts2[3] === '-' ? '' : parts2[3];
-  var group1Tasks = [];
-  try { group1Tasks = JSON.parse(parts1[4]); } catch (e) {}
-  var group2Tasks = [];
-  try { group2Tasks = JSON.parse(parts2[4]); } catch (e) {}
-  var group1Records = allRecords.filter(function(r) {
-    return _overviewMatchesKey(r, key);
-  });
-  allRecords = allRecords.filter(function(r) {
-    return !(_overviewMatchesKey(r, key));
-  });
-  var insertIdx = allRecords.findIndex(function(r) {
-    return _overviewMatchesKey(r, prevKey);
-  });
-  allRecords.splice.apply(allRecords, [insertIdx, 0].concat(group1Records));
-  S(REC_KEY, allRecords);
-  window._statsData = allRecords;
-  var currentFiltered = [];
-  var fromDate = heatmapRange.start || '';
-  var toDate = heatmapRange.end || '';
-  var empFilter = document.getElementById('statsEmpInput')?.value?.trim() || '';
-  var shiftFilter = document.getElementById('statsShiftFilter')?.value || '';
-  var taskFilter = document.getElementById('statsTaskFilter')?.value || '';
-  currentFiltered = allRecords.filter(function(r) {
-    if (fromDate && r.date < fromDate) return false;
-    if (toDate && r.date > toDate) return false;
-    if (shiftFilter && !r.shift.startsWith(shiftFilter)) return false;
-    if (taskFilter && !(r.tasks || []).some(function(t) { return t.task === taskFilter; })) return false;
+  _overviewMoveRunning = true;
+  var state = PaginationManager.overview;
+  var previousPage = state.currentPage;
+  try {
+    await flushRecords();
+    var dayKeys = _overviewGroupsForDate(dayFrom);
+    var src = dayKeys.indexOf(fromKey), dst = dayKeys.indexOf(toKey);
+    if (src < 0 || dst < 0) throw new Error('Không tìm thấy nhóm công việc trong dữ liệu gốc.');
+    dayKeys.splice(src,1);
+    dst = dayKeys.indexOf(toKey) + (after ? 1 : 0);
+    dayKeys.splice(dst,0,fromKey);
+    var ranks = new Map(dayKeys.map(function(key,i){return [key,i+1];}));
+    var changed = 0, stamp = Date.now();
+    var next = L(REC_KEY, []).map(function(r) {
+      if (!r || r.deleted || r.date !== dayFrom) return r;
+      var rank = ranks.get(_overviewGroupKey(r));
+      if (rank == null || Number(r.overviewOrder) === rank && r.overviewOrder != null) return r;
+      changed++;
+      return Object.assign({},r,{overviewOrder:rank,
+        lastModified:Math.max(stamp, Number(r.lastModified || 0)+1)});
+    });
+    if (changed) await S(REC_KEY,next); // IndexedDB V2 lưu cùng hàng đợi Smart Sync.
+    _overviewOrderMessage = '✅ Đã lưu thứ tự trên thiết bị. Để thấy thứ tự này trên điện thoại, Admin nhấn Lưu lên Firebase rồi cập nhật dữ liệu trên điện thoại.';
+    // Giữ bộ lọc hiện hành, vẽ lại; di chuyển sang trang có STT đích khi cần.
+    if (typeof applyStatsFilters === 'function') applyStatsFilters();
+    var newIdx = PaginationManager.overview.data.findIndex(function(x){ return x.key === fromKey; });
+    if (newIdx >= 0) state.currentPage = Math.floor(newIdx/state.itemsPerPage)+1;
+    else state.currentPage = previousPage;
+    var el = document.getElementById('statsTableContainer');
+    if (el) renderCurrentOverviewPage(el);
+    console.info('✅ Đã lưu thứ tự',dayFrom,'với',dayKeys.length,'nhóm,',changed,'bản ghi thay đổi. Nhấn Lưu lên Firebase để đồng bộ thiết bị khác.');
     return true;
-  });
-  renderStatsTable(currentFiltered);
+  } catch(e) {
+    console.error('Lỗi lưu STT:', e);
+    await showAlert('Không thể lưu STT: ' + (e.message || e));
+    return false;
+  } finally { _overviewMoveRunning = false; }
+}
+function _overviewGroupKeyDate(key) { return String(key || '').slice(0,10); }
+window.moveGroupUp = async function(gidx) {
+  var data = PaginationManager.overview.data;
+  var key = _tableGroupMap[gidx], idx = data.findIndex(function(x){return x.key===key;});
+  if (idx > 0) await _moveOverviewGroup(key,data[idx-1].key,false);
 };
-
-window.moveGroupDown = function(gidx) {
-  window._manualSort = true;
-  var key = _tableGroupMap[gidx];
-  if (!key) return;
-  var allRecords = L(REC_KEY, []);
-  var sortedKeys = Object.keys(_tableGroupMap);
-  var currentIdx = -1;
-  for (var i = 0; i < sortedKeys.length; i++) {
-    if (_tableGroupMap[sortedKeys[i]] === key) { currentIdx = i; break; }
-  }
-  if (currentIdx === -1 || currentIdx >= sortedKeys.length - 1) return;
-  var nextKey = _tableGroupMap[sortedKeys[currentIdx + 1]];
-  var parts1 = key.split('|');
-  var parts2 = nextKey.split('|');
-  var group1Date = parts1[0],
-    group1Shift = parts1[1],
-    group1Eat = parts1[2],
-    group1Note = parts1[3] === '-' ? '' : parts1[3];
-  var group2Date = parts2[0],
-    group2Shift = parts2[1],
-    group2Eat = parts2[2],
-    group2Note = parts2[3] === '-' ? '' : parts2[3];
-  var group1Tasks = [];
-  try { group1Tasks = JSON.parse(parts1[4]); } catch (e) {}
-  var group2Tasks = [];
-  try { group2Tasks = JSON.parse(parts2[4]); } catch (e) {}
-  var group1Records = allRecords.filter(function(r) {
-    return _overviewMatchesKey(r, key);
-  });
-  allRecords = allRecords.filter(function(r) {
-    return !(_overviewMatchesKey(r, key));
-  });
-  var insertIdx = allRecords.findIndex(function(r) {
-    return _overviewMatchesKey(r, nextKey);
-  });
-  if (insertIdx === -1) return;
-  allRecords.splice.apply(allRecords, [insertIdx + group1Records.length, 0].concat(group1Records));
-  S(REC_KEY, allRecords);
-  window._statsData = allRecords;
-  var currentFiltered = [];
-  var fromDate = heatmapRange.start || '';
-  var toDate = heatmapRange.end || '';
-  var empFilter = document.getElementById('statsEmpInput')?.value?.trim() || '';
-  var shiftFilter = document.getElementById('statsShiftFilter')?.value || '';
-  var taskFilter = document.getElementById('statsTaskFilter')?.value || '';
-  currentFiltered = allRecords.filter(function(r) {
-    if (fromDate && r.date < fromDate) return false;
-    if (toDate && r.date > toDate) return false;
-    if (shiftFilter && !r.shift.startsWith(shiftFilter)) return false;
-    if (taskFilter && !(r.tasks || []).some(function(t) { return t.task === taskFilter; })) return false;
-    return true;
-  });
-  renderStatsTable(currentFiltered);
+window.moveGroupDown = async function(gidx) {
+  var data = PaginationManager.overview.data;
+  var key = _tableGroupMap[gidx], idx = data.findIndex(function(x){return x.key===key;});
+  if (idx >= 0 && idx < data.length-1) await _moveOverviewGroup(key,data[idx+1].key,true);
 };
 
 // ==================== EXPORT FUNCTIONS ====================
@@ -5346,88 +5338,33 @@ window.onRowDragOver = function(e) {
     e.preventDefault();
 };
 
-// 3 HÀM KÉO THẢ
-window.onRowDrop = function(e) {
-    e.preventDefault();
-    var fromGidx = e.dataTransfer.getData('text/plain');
-    var toTr = e.target.closest('tr');
-    if (!toTr) return;
-    var toGidx = toTr.dataset.gidx;
-    
-    if (fromGidx === toGidx) return;
-    
-    var fromKey = _tableGroupMap[fromGidx];
-    var toKey = _tableGroupMap[toGidx];
-    
-    // Hoán đổi vị trí 2 nhóm
-    var allRecords = L(REC_KEY, []);
-    
-    // Tìm records của 2 nhóm
-    var partsFrom = fromKey.split('|');
-    var partsTo = toKey.split('|');
-    
-    var fromDate = partsFrom[0], fromShift = partsFrom[1], fromEat = partsFrom[2], fromNote = partsFrom[3] === '-' ? '' : partsFrom[3];
-    var toDate = partsTo[0], toShift = partsTo[1], toEat = partsTo[2], toNote = partsTo[3] === '-' ? '' : partsTo[3];
-    var fromTasks = []; try { fromTasks = JSON.parse(partsFrom[4]); } catch(e) {}
-    var toTasks = []; try { toTasks = JSON.parse(partsTo[4]); } catch(e) {}
-    
-    // Lấy records của nhóm FROM
-    var fromRecords = allRecords.filter(function(r) {
-        return _overviewMatchesKey(r, fromKey);
-    });
-    
-    // Xóa nhóm FROM khỏi mảng
-    allRecords = allRecords.filter(function(r) {
-        return !(_overviewMatchesKey(r, fromKey));
-    });
-    
-    // Tìm vị trí nhóm TO trong mảng mới
-    var insertIdx = allRecords.findIndex(function(r) {
-        return _overviewMatchesKey(r, toKey);
-    });
-    
-    if (insertIdx === -1) return;
-    
-    // Chèn nhóm FROM vào vị trí nhóm TO
-    allRecords.splice.apply(allRecords, [insertIdx, 0].concat(fromRecords));
-    
-    S(REC_KEY, allRecords);
-    window._statsData = allRecords;
-    renderStatsTable(allRecords);
+// Kéo thả dùng cùng cơ chế lưu STT; không di chuyển trực tiếp records trong mảng.
+window.onRowDrop = async function(e) {
+  e.preventDefault();
+  var fromGidx = e.dataTransfer.getData('text/plain');
+  var toTr = e.target.closest('tr[data-gidx]');
+  if (!toTr) return;
+  await _moveOverviewGroup(_tableGroupMap[fromGidx], _tableGroupMap[toTr.dataset.gidx], false);
 };
-
-// Nhập số vào ô STT → Bản ghi tự nhảy đến đúng vị trí đó! 
-window.moveRowToPosition = function(input) {
-    var newPos = parseInt(input.value);
-    var gidx = input.dataset.gidx;
-    
-    if (!gidx || isNaN(newPos) || newPos < 1) {
-        var container = document.getElementById('statsTableContainer');
-        if (container) renderCurrentOverviewPage(container);
-        return;
-    }
-    
-    var groups = PaginationManager.overview.data;
-    if (!groups || groups.length === 0) return;
-    
-    var fromIdx = -1;
-    for (var i = 0; i < groups.length; i++) {
-        if (groups[i].key === _tableGroupMap[gidx]) {
-            fromIdx = i;
-            break;
-        }
-    }
-    
-    if (fromIdx === -1) return;
-    
-    if (newPos > groups.length) newPos = groups.length;
-    
-    var item = groups.splice(fromIdx, 1)[0];
-    groups.splice(newPos - 1, 0, item);
-    
-    PaginationManager.overview.data = groups;
-    var container = document.getElementById('statsTableContainer');
-    if (container) renderCurrentOverviewPage(container);
+// Nhập STT tuyệt đối của bảng đang lọc, không sửa nội dung bản ghi.
+window.moveRowToPosition = async function(input) {
+  var position = Number(input.value), key = _tableGroupMap[input.dataset.gidx];
+  var data = PaginationManager.overview.data;
+  var from = data.findIndex(function(x){return x.key===key;});
+  if (!Number.isInteger(position) || position<1 || position>data.length || from<0) {
+    await showAlert('STT cần là số nguyên từ 1 đến ' + data.length + '.');
+    var box = document.getElementById('statsTableContainer');
+    if (box) renderCurrentOverviewPage(box);
+    return;
+  }
+  var destination = position-1;
+  if (destination === from) return;
+  // Di chuyển về trước hoặc sau nhóm đích theo hướng thay đổi STT.
+  var updated = await _moveOverviewGroup(key, data[destination].key, destination>from);
+  if (!updated) {
+    var box = document.getElementById('statsTableContainer');
+    if (box) renderCurrentOverviewPage(box);
+  }
 };
 
 // ==================== LƯU MẪU CHẤM CÔNG ====================
@@ -6489,6 +6426,7 @@ function _rerenderCurrentView() {
 }
 
 console.log('✅ fetchRecordsByTime và _rerenderCurrentView đã sẵn sàng');
+window.CHAMCONG_STT_VERSION = '20261123-persist-stt-v1';
 
 // ✅ Cleanup listeners khi user rời trang
 window.addEventListener('beforeunload', function() {
