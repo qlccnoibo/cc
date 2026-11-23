@@ -2725,3 +2725,47 @@ body.admin-mode .employee-only {
     appearance: auto;
   }
 }
+
+/* ===== FIX V5: iOS/Safari month field uses mobile month/year selects =====
+   Limited to Total Workdays only. Native month input remains authoritative for the app. */
+#subTabEmployeeWorkdays .workdays-month-mobile {
+  display: none;
+}
+@media (max-width: 640px) {
+  #subTabEmployeeWorkdays .workdays-controls #workdaysMonth {
+    display: none !important;
+  }
+  #subTabEmployeeWorkdays .workdays-month-mobile {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  #subTabEmployeeWorkdays .workdays-month-mobile select {
+    display: block;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    min-height: 44px;
+    height: 44px;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 8px 26px 8px 10px;
+    border: 1px solid #cbd5e1;
+    border-radius: 9px;
+    background-color: #fff;
+    color: #0f172a;
+    font-size: 15px;
+    line-height: normal;
+    text-align: left;
+    -webkit-appearance: menulist;
+    appearance: menulist;
+  }
+  #subTabEmployeeWorkdays .workdays-month-mobile select:disabled {
+    opacity: .55;
+    background-color: #f1f5f9;
+  }
+}
